@@ -38,5 +38,10 @@ export default function SimpleMap() {
     if (!map) initializeMap({ setMap, mapContainer });
   }, [map]);
 
-  return <div ref={mapContainer} style={{ width: "100%", height: "100vh" }} />;
+  return (
+    <div
+      ref={mapContainer}
+      className="w-full h-full absolute top-0 left-0 z-0"
+    />
+  );
 }
