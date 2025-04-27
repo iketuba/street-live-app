@@ -1,6 +1,6 @@
 // src/app/page.tsx
 import SimpleMap from "../components/Map";
-import { LoginButton } from "../components/LoginButton";
+import { AuthButtons } from "@/components/AuthButtons";
 
 export default function Home() {
   return (
@@ -8,7 +8,7 @@ export default function Home() {
       <div className="absolute top-0 left-0 w-full h-full">
         <SimpleMap />
       </div>
-      <LoginButton />
+      <AuthButtons />
     </main>
   );
 }

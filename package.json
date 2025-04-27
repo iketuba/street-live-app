@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@mapbox/mapbox-gl-language": "^1.0.1",
+    "@radix-ui/react-slot": "^1.2.0",
     "@types/mapbox-gl": "^3.4.1",
     "@types/react-map-gl": "^6.1.7",
     "class-variance-authority": "^0.7.1",
