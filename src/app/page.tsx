@@ -1,4 +1,3 @@
-// src/app/page.tsx
 import SimpleMap from "../components/Map";
 import { AuthButtons } from "@/components/AuthButtons";
 
