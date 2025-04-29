@@ -1,5 +1,6 @@
 import '../styles/globals.css';
 import { Toaster } from 'react-hot-toast';
+import BottomNav from '@/components/BottomNav';
 
 export const metadata = {
   title: 'Next.js',
@@ -13,9 +14,11 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      <body>{children}
+      <body>
+        {children}
+        <BottomNav /> {/* 全ページに表示されるナビゲーションバー */}
         <Toaster />
       </body>
     </html>
-  )
+  );
 }

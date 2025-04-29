@@ -3,12 +3,11 @@
 import { useEffect, useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { auth, storage } from "@/lib/firebase";
-import { onAuthStateChanged, signOut, User } from "firebase/auth";
+import { onAuthStateChanged, User, updateProfile } from "firebase/auth";
 import { Button } from "@/components/ui/button";
 import Image from "next/image";
 import { db } from "@/lib/firebase";
 import { doc, getDoc, setDoc } from "firebase/firestore";
-import Link from "next/link";
 import toast from "react-hot-toast";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 
@@ -23,6 +22,7 @@ export default function ProfilePage() {
     tiktok: "",
     other: "",
   });
+  const [username, setUsername] = useState(""); // For the username edit
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
@@ -30,6 +30,7 @@ export default function ProfilePage() {
         router.push("/");
       } else {
         setUser(user);
+        setUsername(user.displayName || ""); // Set initial username
 
         const userDocRef = doc(db, "users", user.uid);
         const userDoc = await getDoc(userDocRef);
@@ -49,26 +50,34 @@ export default function ProfilePage() {
     return () => unsubscribe();
   }, [router]);
 
-  const handleLogout = async () => {
-    await signOut(auth);
-    router.push("/");
-  };
-
   const handleSaveProfile = async () => {
     if (!user) return;
 
-    const userDocRef = doc(db, "users", user.uid);
-    await setDoc(userDocRef, {
-      bio,
-      instagram: sns.instagram,
-      twitter: sns.twitter,
-      youtube: sns.youtube,
-      tiktok: sns.tiktok,
-      other: sns.other,
-      updatedAt: new Date(),
-    });
+    // Update Firestore with the new username
+    await setDoc(
+      doc(db, "users", user.uid),
+      {
+        bio,
+        instagram: sns.instagram,
+        twitter: sns.twitter,
+        youtube: sns.youtube,
+        tiktok: sns.tiktok,
+        other: sns.other,
+        updatedAt: new Date(),
+      },
+      { merge: true }
+    );
 
-    toast.success("プロフィールを保存しました！");
+    // Update Firebase Auth with the new username
+    if (username !== user.displayName) {
+      try {
+        await updateProfile(user, { displayName: username });
+        toast.success("プロフィールを保存しました！");
+      } catch (error) {
+        toast.error("ユーザー名の更新に失敗しました");
+        console.error(error);
+      }
+    }
   };
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -99,12 +108,16 @@ export default function ProfilePage() {
     }
   };
 
+  const handleBack = () => {
+    router.push("/mypage"); // マイページに戻る
+  };
+
   if (!user) {
     return null;
   }
 
   return (
-    <div className="flex flex-col items-center justify-center min-h-screen p-4">
+    <div className="flex flex-col items-center justify-center min-h-screen p-4 pb-24">
       <div
         className="relative w-24 h-24 mb-4 group cursor-pointer"
         onClick={handleImageClick}
@@ -133,8 +146,16 @@ export default function ProfilePage() {
       </div>
 
       <h2 className="text-2xl font-semibold mb-4">
-        {user.displayName || "ユーザー名未設定"}
+        {/* Editable username */}
+        <input
+          type="text"
+          value={username}
+          onChange={(e) => setUsername(e.target.value)}
+          className="w-full max-w-md p-2 border rounded mb-4 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          placeholder="ユーザー名"
+        />
       </h2>
+      
       <textarea
         value={bio}
         onChange={(e) => setBio(e.target.value)}
@@ -202,19 +223,13 @@ export default function ProfilePage() {
         プロフィールを保存
       </Button>
 
+      {/* 戻るボタン */}
       <Button
-        onClick={handleLogout}
-        className="w-full max-w-md py-2 bg-red-500 text-white rounded-lg"
+        onClick={handleBack}
+        className="w-full max-w-md py-2 bg-gray-300 text-black rounded-lg"
       >
-        ログアウト
+        戻る
       </Button>
-
-      <Link
-        href="/"
-        className="fixed bottom-4 left-4 bg-gray-800 text-white px-4 py-2 rounded-full shadow-lg"
-      >
-        地図に戻る
-      </Link>
     </div>
   );
 }
