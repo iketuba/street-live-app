@@ -34,17 +34,17 @@ export const AuthButtons = () => {
   if (user) return null;
 
   return (
-    <div className="fixed top-4 right-4 flex space-x-4 z-10">
+    <div className="fixed bottom-20 right-4 flex space-x-2 z-10">
       <Button
         onClick={() => openModal("login")}
-        className="py-2 px-6 text-white rounded-lg text-lg shadow-lg bg-blue-500 hover:bg-blue-600"
+        className="py-1.5 px-4 text-white rounded-md text-sm bg-blue-300 hover:bg-blue-400"
       >
         ログイン
       </Button>
       <Button
         onClick={() => openModal("signup")}
         variant="secondary"
-        className="py-2 px-6 text-white rounded-lg text-lg shadow-lg bg-red-500 hover:bg-red-600"
+        className="py-1.5 px-4 text-white rounded-md text-sm bg-red-300 hover:bg-red-400"
       >
         新規登録
       </Button>

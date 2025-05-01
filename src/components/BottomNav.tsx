@@ -11,7 +11,7 @@ export default function BottomNav() {
 
   const navItems = [
     { href: "/home", label: "ホーム", icon: <Home className="w-5 h-5" /> },
-    { href: "/post", label: "投稿", icon: <PlusCircle className="w-5 h-5" /> },
+    { href: "/location-select", label: "投稿", icon: <PlusCircle className="w-5 h-5" /> },
     {
       href: "/mypage",
       label: "マイページ",

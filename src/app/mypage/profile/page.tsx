@@ -2,19 +2,27 @@
 
 import { useEffect, useState, useRef } from "react";
 import { useRouter } from "next/navigation";
-import { auth, storage } from "@/lib/firebase";
-import { onAuthStateChanged, User, updateProfile } from "firebase/auth";
-import { Button } from "@/components/ui/button";
-import Image from "next/image";
-import { db } from "@/lib/firebase";
-import { doc, getDoc, setDoc } from "firebase/firestore";
-import toast from "react-hot-toast";
+import { auth, db, storage } from "@/lib/firebase";
+import { User } from "firebase/auth";
+import { doc, getDoc, setDoc, Timestamp } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
+import toast from "react-hot-toast";
+import Image from "next/image";
+import { Button } from "@/components/ui/button";
+import {
+  FaInstagram,
+  FaTwitter,
+  FaYoutube,
+  FaTiktok,
+  FaLink,
+} from "react-icons/fa";
 
 export default function ProfilePage() {
   const router = useRouter();
   const [user, setUser] = useState<User | null>(null);
+  const [username, setUsername] = useState("");
   const [bio, setBio] = useState("");
+  const [photoURL, setPhotoURL] = useState("");
   const [sns, setSNS] = useState({
     instagram: "",
     twitter: "",
@@ -22,65 +30,59 @@ export default function ProfilePage() {
     tiktok: "",
     other: "",
   });
-  const [username, setUsername] = useState(""); // For the username edit
+
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (user) => {
-      if (!user) {
-        router.push("/");
-      } else {
-        setUser(user);
-        setUsername(user.displayName || ""); // Set initial username
+    const currentUser = auth.currentUser;
+    if (!currentUser) {
+      router.push("/");
+      return;
+    }
 
-        const userDocRef = doc(db, "users", user.uid);
-        const userDoc = await getDoc(userDocRef);
-        if (userDoc.exists()) {
-          const data = userDoc.data();
-          setBio(data.bio || "");
-          setSNS({
-            instagram: data.instagram || "",
-            twitter: data.twitter || "",
-            youtube: data.youtube || "",
-            tiktok: data.tiktok || "",
-            other: data.other || "",
-          });
-        }
+    setUser(currentUser);
+    const fetchUserData = async () => {
+      const userDocRef = doc(db, "users", currentUser.uid);
+      const userDoc = await getDoc(userDocRef);
+      if (userDoc.exists()) {
+        const data = userDoc.data();
+        setUsername(data.username || "");
+        setBio(data.bio || "");
+        setPhotoURL(data.photoURL || "");
+        setSNS({
+          instagram: data.instagram || "",
+          twitter: data.twitter || "",
+          youtube: data.youtube || "",
+          tiktok: data.tiktok || "",
+          other: data.other || "",
+        });
       }
-    });
-    return () => unsubscribe();
+    };
+    fetchUserData();
   }, [router]);
 
-  const handleSaveProfile = async () => {
-    if (!user) return;
+  interface UserProfileData {
+    username?: string;
+    bio?: string;
+    instagram?: string;
+    twitter?: string;
+    youtube?: string;
+    tiktok?: string;
+    other?: string;
+    photoURL?: string;
+  }
 
-    // Update Firestore with the new username
+  const updateUserProfile = async (data: UserProfileData) => {
+    if (!user) return;
     await setDoc(
       doc(db, "users", user.uid),
       {
-        bio,
-        instagram: sns.instagram,
-        twitter: sns.twitter,
-        youtube: sns.youtube,
-        tiktok: sns.tiktok,
-        other: sns.other,
-        updatedAt: new Date(),
+        ...data,
+        updatedAt: Timestamp.now(),
       },
       { merge: true }
     );
-
-    // Update Firebase Auth with the new username
-    if (username !== user.displayName) {
-      try {
-        await updateProfile(user, { displayName: username });
-        toast.success("プロフィールを保存しました！");
-      } catch (error) {
-        toast.error("ユーザー名の更新に失敗しました");
-        console.error(error);
-      }
-    }
   };
-
-  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const handleImageClick = () => {
     fileInputRef.current?.click();
@@ -95,26 +97,70 @@ export default function ProfilePage() {
       const storageRef = ref(storage, `profileImages/${user.uid}`);
       await uploadBytes(storageRef, file);
       const downloadURL = await getDownloadURL(storageRef);
-
-      const userDocRef = doc(db, "users", user.uid);
-      await setDoc(userDocRef, { photoURL: downloadURL }, { merge: true });
-
-      setUser({ ...user, photoURL: downloadURL });
-
+      await updateUserProfile({ photoURL: downloadURL });
+      setPhotoURL(downloadURL);
       toast.success("プロフィール画像をアップロードしました！");
-    } catch (error) {
-      console.error("画像アップロードエラー:", error);
+    } catch {
       toast.error("画像アップロードに失敗しました");
     }
   };
 
-  const handleBack = () => {
-    router.push("/mypage"); // マイページに戻る
+  const isValidURL = (url: string) =>
+    /^(https?:\/\/)?([\w.-]+\.[a-z]{2,})(\/[\w\-._~:/?#[\]@!$&'()*+,;=]*)?$/i.test(
+      url
+    );
+
+  const normalizeURL = (url: string) => {
+    if (!url.trim()) return "";
+    return /^https?:\/\//i.test(url) ? url : `https://${url}`;
   };
 
-  if (!user) {
-    return null;
-  }
+  const handleSaveProfile = async () => {
+    if (!user) return;
+    if (!username.trim()) {
+      toast.error("ユーザー名を入力してください");
+      return;
+    }
+
+    const trimmedSNS = Object.fromEntries(
+      Object.entries(sns).map(([key, value]) => [
+        key,
+        normalizeURL(value.trim()),
+      ])
+    );
+
+    for (const [key, value] of Object.entries(trimmedSNS)) {
+      if (value && !isValidURL(value)) {
+        toast.error(`${key} のURLが正しくありません`);
+        return;
+      }
+    }
+
+    try {
+      await updateUserProfile({
+        username: username.trim(),
+        bio: bio.trim(),
+        ...trimmedSNS,
+      });
+      toast.success("プロフィールを保存しました！");
+    } catch {
+      toast.error("プロフィールの保存に失敗しました");
+    }
+  };
+
+  const handleBack = () => {
+    router.push("/mypage");
+  };
+
+  if (!user) return null;
+
+  const snsFields = [
+    { label: "Instagram", value: "instagram", icon: <FaInstagram /> },
+    { label: "Twitter", value: "twitter", icon: <FaTwitter /> },
+    { label: "YouTube", value: "youtube", icon: <FaYoutube /> },
+    { label: "TikTok", value: "tiktok", icon: <FaTiktok /> },
+    { label: "その他", value: "other", icon: <FaLink /> },
+  ];
 
   return (
     <div className="flex flex-col items-center justify-center min-h-screen p-4 pb-24">
@@ -123,19 +169,15 @@ export default function ProfilePage() {
         onClick={handleImageClick}
       >
         <Image
-          src={user?.photoURL || "/default-profile.png"}
+          src={photoURL || "/default-profile.png"}
           alt="プロフィール画像"
           layout="fill"
           objectFit="cover"
           className="rounded-full"
         />
-
-        {/* ホバー時に出現する + ボタン */}
         <div className="absolute inset-0 flex items-center justify-center rounded-full bg-black bg-opacity-40 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
           <span className="text-white text-3xl">＋</span>
         </div>
-
-        {/* 非表示のファイルインプット */}
         <input
           type="file"
           accept="image/*"
@@ -145,75 +187,46 @@ export default function ProfilePage() {
         />
       </div>
 
-      <h2 className="text-2xl font-semibold mb-4">
-        {/* Editable username */}
+      <div className="w-full max-w-md mb-4">
+        <label className="block mb-1 font-semibold">ユーザー名</label>
         <input
           type="text"
           value={username}
+          placeholder="例: 山田太郎"
           onChange={(e) => setUsername(e.target.value)}
-          className="w-full max-w-md p-2 border rounded mb-4 focus:outline-none focus:ring-2 focus:ring-blue-500"
-          placeholder="ユーザー名"
+          className="w-full p-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
         />
-      </h2>
-      
-      <textarea
-        value={bio}
-        onChange={(e) => setBio(e.target.value)}
-        placeholder="自己紹介 (100文字以内)"
-        maxLength={100}
-        className="w-full max-w-md p-2 border rounded mb-4 focus:outline-none focus:ring-2 focus:ring-blue-500"
-      />
+      </div>
+
+      <div className="w-full max-w-md mb-6">
+        <label className="block mb-1 font-semibold">
+          自己紹介 (100文字以内)
+        </label>
+        <textarea
+          value={bio}
+          maxLength={100}
+          placeholder="例: シンガーソングライター。都内中心に活動中！"
+          onChange={(e) => setBio(e.target.value)}
+          className="w-full p-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+        />
+      </div>
 
       <div className="w-full max-w-md flex flex-col space-y-4 mb-6">
-        <div className="flex flex-col space-y-1">
-          <label className="text-sm font-semibold">Instagram URL</label>
-          <input
-            type="text"
-            value={sns.instagram}
-            onChange={(e) => setSNS({ ...sns, instagram: e.target.value })}
-            className="p-2 border rounded focus:outline-none focus:ring-2 focus:ring-pink-500"
-          />
-        </div>
-
-        <div className="flex flex-col space-y-1">
-          <label className="text-sm font-semibold">Twitter URL</label>
-          <input
-            type="text"
-            value={sns.twitter}
-            onChange={(e) => setSNS({ ...sns, twitter: e.target.value })}
-            className="p-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-400"
-          />
-        </div>
-
-        <div className="flex flex-col space-y-1">
-          <label className="text-sm font-semibold">YouTube URL</label>
-          <input
-            type="text"
-            value={sns.youtube}
-            onChange={(e) => setSNS({ ...sns, youtube: e.target.value })}
-            className="p-2 border rounded focus:outline-none focus:ring-2 focus:ring-red-500"
-          />
-        </div>
-
-        <div className="flex flex-col space-y-1">
-          <label className="text-sm font-semibold">TikTok URL</label>
-          <input
-            type="text"
-            value={sns.tiktok}
-            onChange={(e) => setSNS({ ...sns, tiktok: e.target.value })}
-            className="p-2 border rounded focus:outline-none focus:ring-2 focus:ring-black"
-          />
-        </div>
-
-        <div className="flex flex-col space-y-1">
-          <label className="text-sm font-semibold">その他のSNSやURL</label>
-          <input
-            type="text"
-            value={sns.other}
-            onChange={(e) => setSNS({ ...sns, other: e.target.value })}
-            className="p-2 border rounded focus:outline-none focus:ring-2 focus:ring-gray-500"
-          />
-        </div>
+        {snsFields.map(({ label, value, icon }) => (
+          <div key={value}>
+            <label className="flex items-center space-x-2 font-semibold mb-1">
+              {icon}
+              <span>{label} URL</span>
+            </label>
+            <input
+              type="text"
+              placeholder={`https://...`}
+              value={sns[value as keyof typeof sns]}
+              onChange={(e) => setSNS({ ...sns, [value]: e.target.value })}
+              className="w-full p-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+        ))}
       </div>
 
       <Button
@@ -223,7 +236,6 @@ export default function ProfilePage() {
         プロフィールを保存
       </Button>
 
-      {/* 戻るボタン */}
       <Button
         onClick={handleBack}
         className="w-full max-w-md py-2 bg-gray-300 text-black rounded-lg"
