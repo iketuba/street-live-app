@@ -59,7 +59,7 @@ export default function MyPage() {
     return () => unsubscribe();
   }, [router]);
 
-  if (authUser === undefined) {
+  if (authUser === undefined || authUser === null) {
     return (
       <div className="flex justify-center items-center min-h-screen">
         <Loader2 className="h-8 w-8 animate-spin text-gray-500" />

@@ -38,15 +38,29 @@ export default function ProfilePage() {
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
-  useEffect(() => {
-    const currentUser = auth.currentUser;
-    if (!currentUser) {
-      router.push("/");
-      return;
-    }
+  const isValidSNSUrl = (platform: string, url: string) => {
+    const patterns: Record<string, RegExp> = {
+      instagram: /^https?:\/\/(www\.)?instagram\.com\/[\w.-]+\/?$/,
+      twitter: /^https?:\/\/(www\.)?twitter\.com\/[\w.-]+\/?$/,
+      youtube:
+        /^https?:\/\/(www\.)?(youtube\.com\/(channel|c|user)\/[\w-]+|youtu\.be\/[\w-]+)\/?$/,
+      tiktok: /^https?:\/\/(www\.)?tiktok\.com\/@[\w.-]+\/?$/,
+      other:
+        /^https?:\/\/[\w.-]+\.[a-z]{2,}(\/[\w\-._~:/?#[\]@!$&'()*+,;=]*)?$/i,
+    };
 
-    setUser(currentUser);
-    const fetchUserData = async () => {
+    const pattern = patterns[platform] || patterns.other;
+    return pattern.test(url);
+  };
+
+  useEffect(() => {
+    const unsubscribe = auth.onAuthStateChanged(async (currentUser) => {
+      if (!currentUser) {
+        router.push("/");
+        return;
+      }
+
+      setUser(currentUser);
       const userDocRef = doc(db, "users", currentUser.uid);
       const userDoc = await getDoc(userDocRef);
       if (userDoc.exists()) {
@@ -63,20 +77,10 @@ export default function ProfilePage() {
         });
       }
       setIsLoadingProfile(false);
-    };
-    fetchUserData();
-  }, [router]);
+    });
 
-  interface UserProfileData {
-    username?: string;
-    bio?: string;
-    instagram?: string;
-    twitter?: string;
-    youtube?: string;
-    tiktok?: string;
-    other?: string;
-    photoURL?: string;
-  }
+    return () => unsubscribe();
+  }, [router]);
 
   const updateUserProfile = async (data: UserProfileData) => {
     if (!user) return;
@@ -114,11 +118,6 @@ export default function ProfilePage() {
     }
   };
 
-  const isValidURL = (url: string) =>
-    /^(https?:\/\/)?([\w.-]+\.[a-z]{2,})(\/[\w\-._~:/?#[\]@!$&'()*+,;=]*)?$/i.test(
-      url
-    );
-
   const normalizeURL = (url: string) => {
     if (!url.trim()) return "";
     return /^https?:\/\//i.test(url) ? url : `https://${url}`;
@@ -139,7 +138,7 @@ export default function ProfilePage() {
     );
 
     for (const [key, value] of Object.entries(trimmedSNS)) {
-      if (value && !isValidURL(value)) {
+      if (value && !isValidSNSUrl(key, value)) {
         toast.error(`${key} のURLが正しくありません`);
         return;
       }
@@ -215,8 +214,11 @@ export default function ProfilePage() {
             />
           </div>
 
+          {/* ユーザー名 */}
           <div className="w-full max-w-md mb-4">
-            <label className="block mb-1 font-semibold">ユーザー名</label>
+            <label className="block mb-1 font-semibold">
+              ユーザー名 <span className="text-red-500">*</span>
+            </label>
             <input
               type="text"
               value={username}
@@ -226,9 +228,11 @@ export default function ProfilePage() {
             />
           </div>
 
+          {/* 自己紹介 */}
           <div className="w-full max-w-md mb-6">
             <label className="block mb-1 font-semibold">
-              自己紹介 (100文字以内)
+              自己紹介{" "}
+              <span className="text-gray-500 text-sm">(100文字以内)</span>
             </label>
             <textarea
               value={bio}
@@ -239,6 +243,7 @@ export default function ProfilePage() {
             />
           </div>
 
+          {/* SNSリンク */}
           <div className="w-full max-w-md flex flex-col space-y-4 mb-6">
             {snsFields.map(({ label, value, icon }) => (
               <div key={value}>
@@ -257,6 +262,7 @@ export default function ProfilePage() {
             ))}
           </div>
 
+          {/* 保存ボタン */}
           <Button
             onClick={handleSaveProfile}
             className="w-full max-w-md py-2 bg-blue-500 text-white rounded-lg mb-4"
@@ -272,6 +278,7 @@ export default function ProfilePage() {
             )}
           </Button>
 
+          {/* 戻るボタン */}
           <Button
             onClick={handleBack}
             className="w-full max-w-md py-2 bg-gray-300 text-black rounded-lg"
@@ -282,4 +289,15 @@ export default function ProfilePage() {
       )}
     </div>
   );
+}
+
+interface UserProfileData {
+  username?: string;
+  bio?: string;
+  instagram?: string;
+  twitter?: string;
+  youtube?: string;
+  tiktok?: string;
+  other?: string;
+  photoURL?: string;
 }
