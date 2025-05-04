@@ -10,9 +10,11 @@ import { Button } from "@/components/ui/button";
 import { toast } from "react-hot-toast";
 import { doc, getDoc } from "firebase/firestore";
 import { FaInstagram, FaTwitter, FaTiktok, FaYoutube } from "react-icons/fa"; // SNSアイコンをインポート
+import { Loader2 } from "lucide-react";
 
 export default function MyPage() {
   const [authUser, setAuthUser] = useState<User | null | undefined>(undefined);
+  const [isLoadingProfile, setIsLoadingProfile] = useState(true);
   const [profile, setProfile] = useState<{
     photoURL: string;
     username: string;
@@ -50,6 +52,7 @@ export default function MyPage() {
             youtube: data.youtube || "",
           });
         }
+        setIsLoadingProfile(false);
       }
     });
 
@@ -59,7 +62,7 @@ export default function MyPage() {
   if (authUser === undefined) {
     return (
       <div className="flex justify-center items-center min-h-screen">
-        <p>読み込み中...</p>
+        <Loader2 className="h-8 w-8 animate-spin text-gray-500" />
       </div>
     );
   }
@@ -73,18 +76,25 @@ export default function MyPage() {
   return (
     <div className="flex flex-col items-center px-4 pt-8 pb-32 min-h-screen">
       {/* プロフィール画像と名前 */}
-      <div className="flex flex-col items-center space-y-2 mb-8">
-        <div className="relative w-24 h-24">
-          <Image
-            src={profile.photoURL || "/default-profile.png"}
-            alt="プロフィール画像"
-            layout="fill"
-            objectFit="cover"
-            className="rounded-full"
-          />
+      {isLoadingProfile ? (
+        <div className="flex flex-col items-center space-y-2 mb-8">
+          <div className="w-24 h-24 rounded-full bg-gray-200 animate-pulse" />
+          <div className="w-32 h-5 bg-gray-200 rounded animate-pulse" />
         </div>
-        <h1 className="text-xl font-semibold">{profile.username}</h1>
-      </div>
+      ) : (
+        <div className="flex flex-col items-center space-y-2 mb-8">
+          <div className="relative w-24 h-24">
+            <Image
+              src={profile.photoURL || "/default-profile.png"}
+              alt="プロフィール画像"
+              layout="fill"
+              objectFit="cover"
+              className="rounded-full"
+            />
+          </div>
+          <h1 className="text-xl font-semibold">{profile.username}</h1>
+        </div>
+      )}
 
       {/* SNSアイコンの表示 */}
       <div className="flex space-x-4 mb-8">

@@ -11,6 +11,7 @@ import {
 import { collection, getDocs } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import Image from "next/image";
+import { Loader2 } from "lucide-react"; // shadcn用スピナー
 
 const containerStyle = {
   width: "100%",
@@ -48,6 +49,7 @@ export default function SimpleMap({ onPlaceSelected }: SimpleMapProps) {
     useState<google.maps.LatLngLiteral | null>(null);
   const [posts, setPosts] = useState<Post[]>([]);
   const [selectedPost, setSelectedPost] = useState<Post | null>(null);
+  const [loadingPosts, setLoadingPosts] = useState(true);
   const autocompleteRef = useRef<google.maps.places.Autocomplete | null>(null);
 
   const handleLoad = (mapInstance: google.maps.Map) => {
@@ -75,15 +77,21 @@ export default function SimpleMap({ onPlaceSelected }: SimpleMapProps) {
 
   useEffect(() => {
     const fetchPosts = async () => {
+      setLoadingPosts(true);
       const snapshot = await getDocs(collection(db, "posts"));
       const data = snapshot.docs.map((doc) => doc.data() as Post);
       setPosts(data);
+      setLoadingPosts(false);
     };
     fetchPosts();
   }, []);
 
   if (!isLoaded) {
-    return <div>Loading map...</div>;
+    return (
+      <div className="w-full h-screen flex items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-gray-500" />
+      </div>
+    );
   }
 
   return (
@@ -101,12 +109,20 @@ export default function SimpleMap({ onPlaceSelected }: SimpleMapProps) {
         </Autocomplete>
       </div>
 
+      {loadingPosts && (
+        <div className="absolute top-24 left-1/2 transform -translate-x-1/2 z-10">
+          <Loader2 className="h-5 w-5 animate-spin text-gray-500" />
+        </div>
+      )}
+
       <GoogleMap
         mapContainerStyle={containerStyle}
         center={initialCenter}
         zoom={15}
         onLoad={handleLoad}
         options={{
+          cameraControl: false,
+          zoomControl: false,
           mapTypeControl: false,
           streetViewControl: false,
           fullscreenControl: false, // 全画面表示ボタンを非表示

@@ -7,6 +7,7 @@ import { auth } from "@/lib/firebase";
 import { Button } from "@/components/ui/button";
 import SimpleMap from "@/components/Map";
 import { Modal } from "@/components/Modal";
+import { Loader2 } from "lucide-react";
 
 export default function LocationSelectPage() {
   const [showPopup, setShowPopup] = useState(true);
@@ -17,6 +18,7 @@ export default function LocationSelectPage() {
   const [modalType, setModalType] = useState<"login" | "signup" | null>(null);
   const [shouldRedirectAfterLogin, setShouldRedirectAfterLogin] =
     useState(false);
+  const [authChecked, setAuthChecked] = useState(false);
 
   const router = useRouter();
 
@@ -24,6 +26,7 @@ export default function LocationSelectPage() {
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
       setIsLoggedIn(!!user);
+      setAuthChecked(true);
 
       if (user && shouldRedirectAfterLogin && markerPosition) {
         const query = new URLSearchParams({
@@ -72,6 +75,14 @@ export default function LocationSelectPage() {
     setModalType(type);
     setModalOpen(true);
   };
+
+  if (!authChecked) {
+    return (
+      <div className="w-full h-screen flex items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-gray-500" />
+      </div>
+    );
+  }
 
   return (
     <div className="relative w-full h-screen">

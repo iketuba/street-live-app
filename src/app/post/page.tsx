@@ -8,6 +8,7 @@ import { db, storage, auth } from "@/lib/firebase";
 import { addDoc, collection, Timestamp } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { useAuthState } from "react-firebase-hooks/auth";
+import { Loader2 } from "lucide-react";
 
 export default function PostPage() {
   const searchParams = useSearchParams();
@@ -17,6 +18,7 @@ export default function PostPage() {
   const lng = longitude ? parseFloat(longitude) : null;
   const [user] = useAuthState(auth);
   const router = useRouter();
+  const [isPosting, setIsPosting] = useState(false);
 
   // 入力状態
   const [startTime, setStartTime] = useState("");
@@ -40,6 +42,8 @@ export default function PostPage() {
       alert("ログインが必要です");
       return;
     }
+
+    setIsPosting(true); // 投稿開始
 
     try {
       let imageUrl = "";
@@ -72,6 +76,8 @@ export default function PostPage() {
     } catch (error) {
       console.error("投稿エラー:", error);
       alert("投稿に失敗しました。");
+    } finally {
+      setIsPosting(false); // 投稿終了
     }
   };
 
@@ -170,7 +176,12 @@ export default function PostPage() {
       </div>
 
       {/* 投稿ボタン */}
-      <Button onClick={handlePost} className="w-full bg-blue-500 text-white">
+      <Button
+        onClick={handlePost}
+        disabled={isPosting}
+        className="w-full bg-blue-500 text-white flex justify-center items-center"
+      >
+        {isPosting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
         投稿する
       </Button>
 

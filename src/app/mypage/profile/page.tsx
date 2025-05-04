@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { auth, db, storage } from "@/lib/firebase";
 import { User } from "firebase/auth";
@@ -16,6 +16,8 @@ import {
   FaTiktok,
   FaLink,
 } from "react-icons/fa";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Loader2 } from "lucide-react";
 
 export default function ProfilePage() {
   const router = useRouter();
@@ -30,6 +32,9 @@ export default function ProfilePage() {
     tiktok: "",
     other: "",
   });
+  const [isLoadingProfile, setIsLoadingProfile] = useState(true);
+  const [isUploading, setIsUploading] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -57,6 +62,7 @@ export default function ProfilePage() {
           other: data.other || "",
         });
       }
+      setIsLoadingProfile(false);
     };
     fetchUserData();
   }, [router]);
@@ -92,6 +98,7 @@ export default function ProfilePage() {
     if (!user) return;
     const file = e.target.files?.[0];
     if (!file) return;
+    setIsUploading(true);
 
     try {
       const storageRef = ref(storage, `profileImages/${user.uid}`);
@@ -102,6 +109,8 @@ export default function ProfilePage() {
       toast.success("プロフィール画像をアップロードしました！");
     } catch {
       toast.error("画像アップロードに失敗しました");
+    } finally {
+      setIsUploading(false);
     }
   };
 
@@ -135,6 +144,7 @@ export default function ProfilePage() {
         return;
       }
     }
+    setIsSaving(true);
 
     try {
       await updateUserProfile({
@@ -145,6 +155,8 @@ export default function ProfilePage() {
       toast.success("プロフィールを保存しました！");
     } catch {
       toast.error("プロフィールの保存に失敗しました");
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -164,84 +176,110 @@ export default function ProfilePage() {
 
   return (
     <div className="flex flex-col items-center justify-center min-h-screen p-4 pb-24">
-      <div
-        className="relative w-24 h-24 mb-4 group cursor-pointer"
-        onClick={handleImageClick}
-      >
-        <Image
-          src={photoURL || "/default-profile.png"}
-          alt="プロフィール画像"
-          layout="fill"
-          objectFit="cover"
-          className="rounded-full"
-        />
-        <div className="absolute inset-0 flex items-center justify-center rounded-full bg-black bg-opacity-40 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
-          <span className="text-white text-3xl">＋</span>
+      {isLoadingProfile ? (
+        <div className="w-full max-w-md space-y-4">
+          <Skeleton className="w-24 h-24 rounded-full mx-auto" />
+          <Skeleton className="w-full h-10 rounded" />
+          <Skeleton className="w-full h-24 rounded" />
+          {Array.from({ length: 5 }).map((_, i) => (
+            <Skeleton key={i} className="w-full h-10 rounded" />
+          ))}
         </div>
-        <input
-          type="file"
-          accept="image/*"
-          ref={fileInputRef}
-          onChange={handleImageChange}
-          className="hidden"
-        />
-      </div>
+      ) : (
+        <>
+          <div
+            className="relative w-24 h-24 mb-4 group cursor-pointer"
+            onClick={handleImageClick}
+          >
+            {isUploading && (
+              <div className="absolute inset-0 bg-black bg-opacity-40 flex items-center justify-center rounded-full z-10">
+                <Loader2 className="h-6 w-6 animate-spin text-white" />
+              </div>
+            )}
+            <Image
+              src={photoURL || "/default-profile.png"}
+              alt="プロフィール画像"
+              layout="fill"
+              objectFit="cover"
+              className="rounded-full"
+            />
+            <div className="absolute inset-0 flex items-center justify-center rounded-full bg-black bg-opacity-40 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+              <span className="text-white text-3xl">＋</span>
+            </div>
+            <input
+              type="file"
+              accept="image/*"
+              ref={fileInputRef}
+              onChange={handleImageChange}
+              className="hidden"
+            />
+          </div>
 
-      <div className="w-full max-w-md mb-4">
-        <label className="block mb-1 font-semibold">ユーザー名</label>
-        <input
-          type="text"
-          value={username}
-          placeholder="例: 山田太郎"
-          onChange={(e) => setUsername(e.target.value)}
-          className="w-full p-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
-        />
-      </div>
-
-      <div className="w-full max-w-md mb-6">
-        <label className="block mb-1 font-semibold">
-          自己紹介 (100文字以内)
-        </label>
-        <textarea
-          value={bio}
-          maxLength={100}
-          placeholder="例: シンガーソングライター。都内中心に活動中！"
-          onChange={(e) => setBio(e.target.value)}
-          className="w-full p-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
-        />
-      </div>
-
-      <div className="w-full max-w-md flex flex-col space-y-4 mb-6">
-        {snsFields.map(({ label, value, icon }) => (
-          <div key={value}>
-            <label className="flex items-center space-x-2 font-semibold mb-1">
-              {icon}
-              <span>{label} URL</span>
-            </label>
+          <div className="w-full max-w-md mb-4">
+            <label className="block mb-1 font-semibold">ユーザー名</label>
             <input
               type="text"
-              placeholder={`https://...`}
-              value={sns[value as keyof typeof sns]}
-              onChange={(e) => setSNS({ ...sns, [value]: e.target.value })}
+              value={username}
+              placeholder="例: 山田太郎"
+              onChange={(e) => setUsername(e.target.value)}
               className="w-full p-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
           </div>
-        ))}
-      </div>
 
-      <Button
-        onClick={handleSaveProfile}
-        className="w-full max-w-md py-2 bg-blue-500 text-white rounded-lg mb-4"
-      >
-        プロフィールを保存
-      </Button>
+          <div className="w-full max-w-md mb-6">
+            <label className="block mb-1 font-semibold">
+              自己紹介 (100文字以内)
+            </label>
+            <textarea
+              value={bio}
+              maxLength={100}
+              placeholder="例: シンガーソングライター。都内中心に活動中！"
+              onChange={(e) => setBio(e.target.value)}
+              className="w-full p-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
 
-      <Button
-        onClick={handleBack}
-        className="w-full max-w-md py-2 bg-gray-300 text-black rounded-lg"
-      >
-        戻る
-      </Button>
+          <div className="w-full max-w-md flex flex-col space-y-4 mb-6">
+            {snsFields.map(({ label, value, icon }) => (
+              <div key={value}>
+                <label className="flex items-center space-x-2 font-semibold mb-1">
+                  {icon}
+                  <span>{label} URL</span>
+                </label>
+                <input
+                  type="text"
+                  placeholder={`https://...`}
+                  value={sns[value as keyof typeof sns]}
+                  onChange={(e) => setSNS({ ...sns, [value]: e.target.value })}
+                  className="w-full p-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+            ))}
+          </div>
+
+          <Button
+            onClick={handleSaveProfile}
+            className="w-full max-w-md py-2 bg-blue-500 text-white rounded-lg mb-4"
+            disabled={isSaving}
+          >
+            {isSaving ? (
+              <span className="flex items-center justify-center">
+                <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                保存中...
+              </span>
+            ) : (
+              "プロフィールを保存"
+            )}
+          </Button>
+
+          <Button
+            onClick={handleBack}
+            className="w-full max-w-md py-2 bg-gray-300 text-black rounded-lg"
+          >
+            戻る
+          </Button>
+        </>
+      )}
     </div>
   );
 }
