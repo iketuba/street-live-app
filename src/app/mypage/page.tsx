@@ -149,7 +149,7 @@ export default function MyPage() {
 
       {/* プロフィール編集 */}
       <div className="w-full max-w-md mb-4">
-        <Link href="/mypage/profile">
+        <Link href="/profile">
           <Button variant="ghost" className="w-full text-left">
             プロフィールを編集
           </Button>
