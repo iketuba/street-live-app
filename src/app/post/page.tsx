@@ -5,10 +5,11 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import Image from "next/image";
 import { db, storage, auth } from "@/lib/firebase";
-import { addDoc, collection, Timestamp } from "firebase/firestore";
+import { doc, setDoc, Timestamp } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { useAuthState } from "react-firebase-hooks/auth";
 import { Loader2 } from "lucide-react";
+import { v4 as uuidv4 } from "uuid";
 
 export default function PostPage() {
   const searchParams = useSearchParams();
@@ -35,85 +36,79 @@ export default function PostPage() {
   // ポップアップ状態ç
   const [showPopup, setShowPopup] = useState(false);
 
-  const handlePost = async () => {
-    if (
-      !title ||
-      !date ||
-      !startTime ||
-      !endTime ||
-      lat === undefined ||
-      lng === undefined
-    ) {
-      setErrorMessage("タイトル、日付、開始時間、終了時間は必須です");
-      return;
+const handlePost = async () => {
+  if (
+    !title ||
+    !date ||
+    !startTime ||
+    !endTime ||
+    lat === undefined ||
+    lng === undefined
+  ) {
+    setErrorMessage("タイトル、日付、開始時間、終了時間は必須です");
+    return;
+  }
+
+  if (!user) {
+    setErrorMessage("ログインが必要です");
+    return;
+  }
+
+  if (isNaN(new Date(date).getTime())) {
+    setErrorMessage("日付が無効です");
+    return;
+  }
+
+  if (startTime >= endTime) {
+    setErrorMessage("開始時間は終了時間より前にしてください");
+    return;
+  }
+
+  if (lat < -90 || lat > 90 || lng < -180 || lng > 180) {
+    setErrorMessage("位置情報が不正です");
+    return;
+  }
+
+  if (image && image.size > 5 * 1024 * 1024) {
+    setErrorMessage("画像サイズは5MB以下にしてください");
+    return;
+  }
+
+  setIsPosting(true);
+
+  try {
+    const postId = uuidv4(); // 先にIDを生成
+    let imageUrl = "";
+
+    if (image) {
+      const ext = image.name.split(".").pop();
+      const imageRef = ref(storage, `images/${postId}.${ext}`);
+      await uploadBytes(imageRef, image);
+      imageUrl = await getDownloadURL(imageRef);
     }
 
-    if (!user) {
-      setErrorMessage("ログインが必要です");
-      return;
-    }
+    await setDoc(doc(db, "posts", postId), {
+      uid: user.uid,
+      title,
+      date,
+      startTime,
+      endTime,
+      price,
+      detail,
+      imageUrl,
+      lat,
+      lng,
+      createdAt: Timestamp.now(),
+    });
 
-    // 日付チェック
-    if (isNaN(new Date(date).getTime())) {
-      setErrorMessage("日付が無効です");
-      return;
-    }
-
-    // 時刻の順序チェック
-    if (startTime >= endTime) {
-      setErrorMessage("開始時間は終了時間より前にしてください");
-      return;
-    }
-
-    // 緯度・経度の範囲チェック
-    if (lat < -90 || lat > 90 || lng < -180 || lng > 180) {
-      setErrorMessage("位置情報が不正です");
-      return;
-    }
-
-    // 画像サイズ制限（5MB）
-    if (image && image.size > 5 * 1024 * 1024) {
-      setErrorMessage("画像サイズは5MB以下にしてください");
-      return;
-    }
-
-    setIsPosting(true); // 投稿開始
-
-    try {
-      let imageUrl = "";
-
-      // 画像アップロード（存在する場合のみ）
-      if (image) {
-        const imageRef = ref(storage, `posts/${user.uid}/${Date.now()}.jpg`);
-        const snapshot = await uploadBytes(imageRef, image);
-        imageUrl = await getDownloadURL(snapshot.ref);
-      }
-
-      // Firestoreに投稿データ保存
-      const postRef = collection(db, "posts");
-      await addDoc(postRef, {
-        uid: user.uid,
-        title,
-        date,
-        startTime,
-        endTime,
-        price,
-        detail,
-        imageUrl,
-        lat,
-        lng,
-        createdAt: Timestamp.now(),
-      });
-
-      // 投稿完了ポップアップ表示
-      setShowPopup(true);
-    } catch (error) {
-      console.error("投稿エラー:", error);
-      alert("投稿に失敗しました。");
-    } finally {
-      setIsPosting(false); // 投稿終了
-    }
-  };
+    setShowPopup(true);
+  } catch (error) {
+    console.error("投稿エラー:", error);
+    alert("投稿に失敗しました。");
+  } finally {
+    setIsPosting(false);
+  }
+};
 
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];

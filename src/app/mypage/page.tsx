@@ -8,13 +8,22 @@ import Image from "next/image";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { toast } from "react-hot-toast";
-import { doc, getDoc } from "firebase/firestore";
+import {
+  doc,
+  getDoc,
+  collection,
+  query,
+  where,
+  getDocs,
+} from "firebase/firestore";
 import { FaInstagram, FaTwitter, FaTiktok, FaYoutube } from "react-icons/fa"; // SNSアイコンをインポート
 import { Loader2 } from "lucide-react";
 
 export default function MyPage() {
   const [authUser, setAuthUser] = useState<User | null | undefined>(undefined);
   const [isLoadingProfile, setIsLoadingProfile] = useState(true);
+  const [activeTab, setActiveTab] = useState<"posts" | "likes">("posts");
+  const [posts, setPosts] = useState<Post[]>([]);
   const [profile, setProfile] = useState<{
     photoURL: string;
     username: string;
@@ -40,7 +49,6 @@ export default function MyPage() {
       } else {
         const userDocRef = doc(db, "users", user.uid);
         const userDocSnap = await getDoc(userDocRef);
-
         if (userDocSnap.exists()) {
           const data = userDocSnap.data();
           setProfile({
@@ -52,6 +60,25 @@ export default function MyPage() {
             youtube: data.youtube || "",
           });
         }
+
+        // 投稿データ取得
+        const postQuery = query(
+          collection(db, "posts"),
+          where("uid", "==", user.uid)
+        );
+        const snapshot = await getDocs(postQuery);
+        const postList: Post[] = snapshot.docs.map((doc) => {
+          const data = doc.data();
+          return {
+            id: doc.id,
+            title: data.title || "",
+            date: data.date || "",
+            startTime: data.startTime || "",
+            endTime: data.endTime || "",
+            price: data.price || 0,
+          };
+        });
+        setPosts(postList);
         setIsLoadingProfile(false);
       }
     });
@@ -97,7 +124,7 @@ export default function MyPage() {
       )}
 
       {/* SNSアイコンの表示 */}
-      <div className="flex space-x-4 mb-8">
+      <div className="flex space-x-4 mb-4">
         {profile.instagram && (
           <Link href={profile.instagram} passHref>
             <FaInstagram size={24} className="text-blue-600" />
@@ -120,23 +147,60 @@ export default function MyPage() {
         )}
       </div>
 
-      {/* メニュー */}
-      <div className="w-full max-w-md space-y-4">
+      {/* プロフィール編集 */}
+      <div className="w-full max-w-md mb-4">
         <Link href="/mypage/profile">
           <Button variant="ghost" className="w-full text-left">
             プロフィールを編集
           </Button>
         </Link>
-        <Link href="/profile/posts">
-          <Button variant="ghost" className="w-full text-left">
-            自分の投稿
-          </Button>
-        </Link>
-        <Link href="/profile/likes">
-          <Button variant="ghost" className="w-full text-left">
-            いいねした投稿
-          </Button>
-        </Link>
+      </div>
+
+      {/* タブ */}
+      <div className="flex space-x-4 mb-4">
+        <button
+          onClick={() => setActiveTab("posts")}
+          className={`px-4 py-2 rounded ${
+            activeTab === "posts" ? "bg-gray-300" : "bg-gray-100"
+          }`}
+        >
+          自分の投稿
+        </button>
+        <button
+          onClick={() => setActiveTab("likes")}
+          className={`px-4 py-2 rounded ${
+            activeTab === "likes" ? "bg-gray-300" : "bg-gray-100"
+          }`}
+        >
+          いいねした投稿
+        </button>
+      </div>
+
+      {/* 投稿表示 */}
+      <div className="w-full max-w-md space-y-4">
+        {activeTab === "posts" &&
+          posts.map((post) => (
+            <div key={post.id} className="border-b border-gray-300 pb-2">
+              <h2 className="font-semibold text-lg">{post.title}</h2>
+              <p className="text-sm text-gray-600">
+                {post.date} {post.startTime}~{post.endTime}
+              </p>
+              <p className="text-sm text-gray-600">
+                料金: {post.price ? `¥${post.price}` : "未設定"}
+              </p>
+              <Link href={`/post-detail?id=${post.id}`}>
+                <Button variant="outline" size="sm" className="mt-2">
+                  詳細を表示
+                </Button>
+              </Link>
+            </div>
+          ))}
+
+        {activeTab === "likes" && (
+          <div className="text-gray-500 text-center">
+            表示する投稿がありません
+          </div>
+        )}
       </div>
 
       {/* ログアウト */}
@@ -149,4 +213,13 @@ export default function MyPage() {
       </Button>
     </div>
   );
+}
+
+interface Post {
+  id: string;
+  title: string;
+  date: string;
+  startTime: string;
+  endTime: string;
+  price: string | number;
 }

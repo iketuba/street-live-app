@@ -66,7 +66,7 @@ export default function SimpleMap({ onPlaceSelected }: SimpleMapProps) {
   const autocompleteRef = useRef<google.maps.places.Autocomplete | null>(null); // Autocomplete参照用
   const [userLocation, setUserLocation] =
     useState<google.maps.LatLngLiteral | null>(null); // ユーザーの現在地
-  const [groupedPosts, setGroupedPosts] = useState<GroupedPost[]>([]);
+  const [groupedPosts, setGroupedPosts] = useState<GroupedPost[]>([]); // 投稿のグループ化結果
 
   const handleLoad = (mapInstance: google.maps.Map) => {
     setMap(mapInstance);
@@ -287,6 +287,8 @@ export default function SimpleMap({ onPlaceSelected }: SimpleMapProps) {
     </div>
   );
 }
+
+// 投稿データのインターフェース
 interface Post {
   postId: string;
   uid: string;
@@ -301,12 +303,15 @@ interface Post {
   photoURL: string;
 }
 
+// グループ化された投稿データのインターフェース
 interface GroupedPost {
   key: string;
   lat: number;
   lng: number;
   posts: Post[];
 }
+
+// SimpleMapコンポーネントのプロパティインターフェース
 interface SimpleMapProps {
   onPlaceSelected?: (location: google.maps.LatLngLiteral) => void; // 場所が選ばれたときのコールバック
 }
