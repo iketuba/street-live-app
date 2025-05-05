@@ -9,7 +9,7 @@ import { onAuthStateChanged, User } from "firebase/auth";
 export const AuthButtons = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [modalType, setModalType] = useState<"login" | "signup" | null>(null);
-  const [user, setUser] = useState<User | null>(null);
+  const [user, setUser] = useState<User | null | undefined>(undefined);
 
   const openModal = (type: "login" | "signup") => {
     setModalType(type);
