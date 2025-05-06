@@ -148,6 +148,8 @@ const handlePost = async () => {
           onChange={(e) => setDate(e.target.value)}
           className="w-full border rounded p-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
           required
+          min="2020-01-01"
+          max="2099-12-31"
         />
       </div>
 
@@ -255,7 +257,7 @@ const handlePost = async () => {
               onClick={() => router.push("/")}
               className="w-full bg-gray-300 text-black"
             >
-              マップで確認
+              ホームへ
             </Button>
           </div>
         </div>

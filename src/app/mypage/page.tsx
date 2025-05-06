@@ -18,6 +18,13 @@ import {
 } from "firebase/firestore";
 import { FaInstagram, FaTwitter, FaTiktok, FaYoutube } from "react-icons/fa"; // SNSアイコンをインポート
 import { Loader2 } from "lucide-react";
+import { Settings } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+} from "@/components/ui/dropdown-menu";
 
 export default function MyPage() {
   const [authUser, setAuthUser] = useState<User | null | undefined>(undefined);
@@ -186,7 +193,12 @@ export default function MyPage() {
                 {post.date} {post.startTime}~{post.endTime}
               </p>
               <p className="text-sm text-gray-600">
-                料金: {post.price ? `¥${post.price}` : "未設定"}
+                料金:{" "}
+                {typeof post.price !== "number"
+                  ? "未設定"
+                  : post.price === 0
+                  ? "無料"
+                  : `¥${post.price}`}
               </p>
               <Link href={`/post-detail?id=${post.id}`}>
                 <Button variant="outline" size="sm" className="mt-2">
@@ -203,14 +215,56 @@ export default function MyPage() {
         )}
       </div>
 
-      {/* ログアウト */}
-      <Button
-        onClick={handleLogout}
-        variant="link"
-        className="text-sm text-gray-500 mt-8"
-      >
-        ログアウト
-      </Button>
+      {/* 設定ボタン */}
+      <div className="absolute top-4 right-4 z-10">
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" size="icon">
+              <Settings className="size-[32px]" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-48">
+            <DropdownMenuItem onClick={() => router.push("/reset-password")}>
+              パスワード再設定
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => router.push("/contact")}>
+              お問い合わせ
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              onClick={() => {
+                if (window.confirm("本当にログアウトしますか？")) {
+                  handleLogout();
+                }
+              }}
+            >
+              ログアウト
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              onClick={async () => {
+                if (
+                  window.confirm(
+                    "アカウントを削除すると、すべてのデータが失われます。本当に削除しますか？"
+                  )
+                ) {
+                  // アカウント削除処理
+                  try {
+                    if (auth.currentUser) {
+                      await auth.currentUser.delete();
+                      toast.success("アカウントを削除しました");
+                      router.push("/");
+                    }
+                  } catch {
+                    toast.error("アカウント削除に失敗しました");
+                  }
+                }
+              }}
+              className="text-red-500"
+            >
+              アカウント削除
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
     </div>
   );
 }

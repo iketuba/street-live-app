@@ -56,29 +56,29 @@ export default function PostDetailPage() {
   }, [postId]);
 
   // 削除処理
-const handleDelete = async () => {
-  if (!postId || !post) return;
+  const handleDelete = async () => {
+    if (!postId || !post) return;
 
-  const confirmDelete = confirm("この投稿を削除しますか？");
-  if (!confirmDelete) return;
+    const confirmDelete = confirm("この投稿を削除しますか？");
+    if (!confirmDelete) return;
 
-  // Storage画像を削除
-  if (post.imageUrl) {
-    try {
-      const imageRef = ref(
-        storage,
-        `images/${postId}.${getExtension(post.imageUrl)}`
-      );
-      await deleteObject(imageRef);
-    } catch (error) {
-      console.error("画像の削除に失敗しました", error);
+    // Storage画像を削除
+    if (post.imageUrl) {
+      try {
+        const imageRef = ref(
+          storage,
+          `images/${postId}.${getExtension(post.imageUrl)}`
+        );
+        await deleteObject(imageRef);
+      } catch (error) {
+        console.error("画像の削除に失敗しました", error);
+      }
     }
-  }
 
-  // Firestore投稿を削除
-  await deleteDoc(doc(db, "posts", postId));
-  router.push("/mypage");
-};
+    // Firestore投稿を削除
+    await deleteDoc(doc(db, "posts", postId));
+    router.push("/mypage");
+  };
 
   if (loading) {
     return (
@@ -141,7 +141,9 @@ const handleDelete = async () => {
         <p>
           {post.date} {post.startTime}~{post.endTime}
         </p>
-        {post.price && <p>料金: ¥{post.price}</p>}
+        {typeof post.price === "number" && (
+          <p>料金: {post.price === 0 ? "無料" : `¥${post.price}`}</p>
+        )}
         {post.detail && <p>詳細: {post.detail}</p>}
         {post.imageUrl && (
           <Image

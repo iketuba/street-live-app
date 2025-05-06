@@ -223,7 +223,9 @@ export default function SimpleMap({ onPlaceSelected }: SimpleMapProps) {
             position={markerPosition}
             icon={{
               url: "http://maps.google.com/mapfiles/ms/icons/blue-dot.png",
+              scaledSize: new window.google.maps.Size(40, 40),
             }}
+            zIndex={1}
           />
         )}
 
@@ -236,6 +238,7 @@ export default function SimpleMap({ onPlaceSelected }: SimpleMapProps) {
             icon={{
               url: "http://maps.google.com/mapfiles/ms/icons/orange-dot.png",
             }}
+            zIndex={2}
           />
         ))}
 
