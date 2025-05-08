@@ -108,7 +108,7 @@ export default function MyPage() {
   };
 
   return (
-    <div className="flex flex-col items-center px-4 pt-8 pb-32 min-h-screen">
+    <div className="fixed inset-0 overflow-y-auto bg-white px-4 pt-8 pb-32 flex flex-col items-center overscroll-none">
       {/* プロフィール画像と名前 */}
       {isLoadingProfile ? (
         <div className="flex flex-col items-center space-y-2 mb-8">

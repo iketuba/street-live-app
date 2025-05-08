@@ -163,7 +163,7 @@ export default function SimpleMap({ onPlaceSelected }: SimpleMapProps) {
   return (
     <div className="w-full h-full absolute top-0 left-0 z-0">
       {/* 検索ボックス（Autocomplete） */}
-      <div className="absolute top-4 left-1/2 transform -translate-x-1/2 z-10 w-11/12 max-w-md">
+      <div className="fixed top-4 left-1/2 transform -translate-x-1/2 z-10 w-11/12 max-w-md">
         <Autocomplete
           onLoad={onAutocompleteLoad}
           onPlaceChanged={onPlaceChanged}
@@ -195,6 +195,7 @@ export default function SimpleMap({ onPlaceSelected }: SimpleMapProps) {
           mapTypeControl: false,
           streetViewControl: false,
           fullscreenControl: false, // 全画面表示ボタンを非表示
+          gestureHandling: "greedy", // スワイプで地図を動かせるようにする
         }}
       >
         {/* 現在地マーカー（青丸） */}

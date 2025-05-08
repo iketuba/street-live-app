@@ -120,7 +120,7 @@ export default function PostClient() {
   }, [image]);
 
   return (
-    <div className="p-4 max-w-md mx-auto space-y-4 pb-24">
+    <div className="fixed inset-0 overflow-y-auto bg-white p-4 max-w-md mx-auto space-y-4 pb-24 overscroll-none">
       <h2 className="text-xl font-bold">投稿情報入力</h2>
       {/* タイトル */}
       <div className="space-y-2">
