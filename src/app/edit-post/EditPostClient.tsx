@@ -91,7 +91,7 @@ export default function EditPostClient() {
         date,
         startTime,
         endTime,
-        price: Number(price),
+        price: price !== "" ? Number(price) : undefined,
         detail,
         imageUrl,
         updatedAt: serverTimestamp(),
@@ -156,6 +156,7 @@ export default function EditPostClient() {
           type="number"
           placeholder="料金（円）"
           value={price}
+          inputMode="numeric"
           onChange={(e) => setPrice(e.target.value)}
         />
         <textarea

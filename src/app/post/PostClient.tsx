@@ -33,7 +33,7 @@ export default function PostClient() {
   const [title, setTitle] = useState("");
   const [date, setDate] = useState("");
 
-  // ポップアップ状態ç
+  // ポップアップ状態
   const [showPopup, setShowPopup] = useState(false);
 
   const handlePost = async () => {
@@ -48,27 +48,31 @@ export default function PostClient() {
       setErrorMessage("タイトル、日付、開始時間、終了時間は必須です");
       return;
     }
-
     if (!user) {
       setErrorMessage("ログインが必要です");
       return;
     }
-
-    if (isNaN(new Date(date).getTime())) {
-      setErrorMessage("日付が無効です");
+    const selectedDate = new Date(`${date}T${startTime}`);
+    const now = new Date();
+    // 過去日付の投稿は禁止
+    if (new Date(date) < new Date(now.toDateString())) {
+      setErrorMessage("日付は今日以降の日付を選択してください");
       return;
     }
-
+    // 開始時間と終了時間の形式チェック
     if (startTime >= endTime) {
       setErrorMessage("開始時間は終了時間より前にしてください");
       return;
     }
-
+    // 開始時間が現在より前ならエラー（未来のみ許可）
+    if (selectedDate < now) {
+      setErrorMessage("開始時間は現在以降の時刻を設定してください");
+      return;
+    }
     if (lat < -90 || lat > 90 || lng < -180 || lng > 180) {
       setErrorMessage("位置情報が不正です");
       return;
     }
-
     if (image && image.size > 5 * 1024 * 1024) {
       setErrorMessage("画像サイズは5MB以下にしてください");
       return;
@@ -93,7 +97,7 @@ export default function PostClient() {
         date,
         startTime,
         endTime,
-        price,
+        price: price !== "" ? Number(price) : undefined,
         detail,
         imageUrl,
         lat,
@@ -189,7 +193,7 @@ export default function PostClient() {
             ¥
           </span>
           <input
-            type="text"
+            type="number"
             value={price}
             inputMode="numeric" // スマホなどで数字キーボードを表示
             onChange={(e) => {
