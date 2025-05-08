@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useSearchParams, useRouter } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { doc, getDoc, deleteDoc } from "firebase/firestore";
 import { db, auth, storage } from "@/lib/firebase";
 import Image from "next/image";
@@ -16,14 +16,7 @@ import { Loader2 } from "lucide-react";
 import { onAuthStateChanged, User as AuthUser } from "firebase/auth";
 import { ref, deleteObject } from "firebase/storage";
 
-function getExtension(url: string): string {
-  const match = url.match(/\.([a-zA-Z0-9]+)(?:\?|$)/);
-  return match ? match[1] : "jpg"; // デフォルトを jpg に
-}
-
-export default function PostDetailPage() {
-  const searchParams = useSearchParams();
-  const postId = searchParams.get("id");
+export default function PostDetailClient({ postId }: PostDetailClientProps) {
   const router = useRouter();
   const [post, setPost] = useState<Post | null>(null);
   const [user, setUser] = useState<User | null>(null);
@@ -31,14 +24,11 @@ export default function PostDetailPage() {
   const [currentUser, setCurrentUser] = useState<AuthUser | null>(null);
 
   useEffect(() => {
-    // 認証ユーザー取得
     const unsubscribe = onAuthStateChanged(auth, (user) => {
       setCurrentUser(user);
     });
 
-    // 投稿、投稿者データ取得
     const fetchData = async () => {
-      if (!postId) return;
       const postDoc = await getDoc(doc(db, "posts", postId));
       if (!postDoc.exists()) return;
       const postData = postDoc.data() as Post;
@@ -49,33 +39,26 @@ export default function PostDetailPage() {
       }
       setLoading(false);
     };
+
     fetchData();
-    return () => {
-      unsubscribe();
-    };
+    return () => unsubscribe();
   }, [postId]);
 
-  // 削除処理
   const handleDelete = async () => {
-    if (!postId || !post) return;
-
+    if (!post) return;
     const confirmDelete = confirm("この投稿を削除しますか？");
     if (!confirmDelete) return;
 
-    // Storage画像を削除
     if (post.imageUrl) {
       try {
-        const imageRef = ref(
-          storage,
-          `images/${postId}.${getExtension(post.imageUrl)}`
-        );
+        const ext = post.imageUrl.split(".").pop() ?? "jpg";
+        const imageRef = ref(storage, `images/${postId}.${ext}`);
         await deleteObject(imageRef);
-      } catch (error) {
-        console.error("画像の削除に失敗しました", error);
+      } catch (e) {
+        console.error("画像削除失敗:", e);
       }
     }
 
-    // Firestore投稿を削除
     await deleteDoc(doc(db, "posts", postId));
     router.push("/mypage");
   };
@@ -167,11 +150,10 @@ export default function PostDetailPage() {
       </div>
 
       {/* 編集・削除ボタン */}
-      {/* 投稿者のみ表示 */}
       {currentUser?.uid === post.uid && (
         <div className="flex gap-4">
           <button
-            onClick={() => router.push(`/edit-post?id=${postId}`)}
+            onClick={() => router.push(`/edit-post/${postId}`)}
             className="flex-1 bg-blue-500 text-white py-2 rounded-lg hover:bg-blue-600 transition"
           >
             編集する
@@ -185,7 +167,6 @@ export default function PostDetailPage() {
         </div>
       )}
 
-      {/* 戻るボタン */}
       <div className="pt-4 pb-24">
         <button
           onClick={() => router.back()}
@@ -219,4 +200,8 @@ interface User {
   youtube?: string;
   tiktok?: string;
   other?: string;
+}
+
+interface PostDetailClientProps {
+  postId: string;
 }

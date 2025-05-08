@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useMemo } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import Image from "next/image";
 import { db, storage, auth } from "@/lib/firebase";
@@ -11,20 +11,14 @@ import { useAuthState } from "react-firebase-hooks/auth";
 import { Loader2 } from "lucide-react";
 import { v4 as uuidv4 } from "uuid";
 
-export default function PostPage() {
-  const searchParams = useSearchParams();
-  const latitude = searchParams.get("latitude");
-  const longitude = searchParams.get("longitude");
-  const lat =
-    latitude && !isNaN(Number(latitude)) ? parseFloat(latitude) : undefined;
-  const lng =
-    longitude && !isNaN(Number(longitude)) ? parseFloat(longitude) : undefined;
+export default function PostPage({ params }: PageProps) {
+  const lat = parseFloat(params.lat);
+  const lng = parseFloat(params.lng);
   const [user] = useAuthState(auth);
   const router = useRouter();
   const [isPosting, setIsPosting] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
 
-  // 入力状態
   const [startTime, setStartTime] = useState("");
   const [endTime, setEndTime] = useState("");
   const [price, setPrice] = useState("");
@@ -32,83 +26,69 @@ export default function PostPage() {
   const [image, setImage] = useState<File | null>(null);
   const [title, setTitle] = useState("");
   const [date, setDate] = useState("");
-
-  // ポップアップ状態ç
   const [showPopup, setShowPopup] = useState(false);
 
-const handlePost = async () => {
-  if (
-    !title ||
-    !date ||
-    !startTime ||
-    !endTime ||
-    lat === undefined ||
-    lng === undefined
-  ) {
-    setErrorMessage("タイトル、日付、開始時間、終了時間は必須です");
-    return;
-  }
-
-  if (!user) {
-    setErrorMessage("ログインが必要です");
-    return;
-  }
-
-  if (isNaN(new Date(date).getTime())) {
-    setErrorMessage("日付が無効です");
-    return;
-  }
-
-  if (startTime >= endTime) {
-    setErrorMessage("開始時間は終了時間より前にしてください");
-    return;
-  }
-
-  if (lat < -90 || lat > 90 || lng < -180 || lng > 180) {
-    setErrorMessage("位置情報が不正です");
-    return;
-  }
-
-  if (image && image.size > 5 * 1024 * 1024) {
-    setErrorMessage("画像サイズは5MB以下にしてください");
-    return;
-  }
-
-  setIsPosting(true);
-
-  try {
-    const postId = uuidv4(); // 先にIDを生成
-    let imageUrl = "";
-
-    if (image) {
-      const ext = image.name.split(".").pop();
-      const imageRef = ref(storage, `images/${postId}.${ext}`);
-      await uploadBytes(imageRef, image);
-      imageUrl = await getDownloadURL(imageRef);
+  const handlePost = async () => {
+    if (!title || !date || !startTime || !endTime || isNaN(lat) || isNaN(lng)) {
+      setErrorMessage("タイトル、日付、開始時間、終了時間は必須です");
+      return;
     }
 
-    await setDoc(doc(db, "posts", postId), {
-      uid: user.uid,
-      title,
-      date,
-      startTime,
-      endTime,
-      price,
-      detail,
-      imageUrl,
-      lat,
-      lng,
-      createdAt: Timestamp.now(),
-    });
+    if (!user) {
+      setErrorMessage("ログインが必要です");
+      return;
+    }
 
-    setShowPopup(true);
-  } catch (error) {
-    console.error("投稿エラー:", error);
-    alert("投稿に失敗しました。");
-  } finally {
-    setIsPosting(false);
-  }
-};
+    if (startTime >= endTime) {
+      setErrorMessage("開始時間は終了時間より前にしてください");
+      return;
+    }
+
+    if (lat < -90 || lat > 90 || lng < -180 || lng > 180) {
+      setErrorMessage("位置情報が不正です");
+      return;
+    }
+
+    if (image && image.size > 5 * 1024 * 1024) {
+      setErrorMessage("画像サイズは5MB以下にしてください");
+      return;
+    }
+
+    setIsPosting(true);
+
+    try {
+      const postId = uuidv4();
+      let imageUrl = "";
+
+      if (image) {
+        const ext = image.name.split(".").pop();
+        const imageRef = ref(storage, `images/${postId}.${ext}`);
+        await uploadBytes(imageRef, image);
+        imageUrl = await getDownloadURL(imageRef);
+      }
+
+      await setDoc(doc(db, "posts", postId), {
+        uid: user.uid,
+        title,
+        date,
+        startTime,
+        endTime,
+        price,
+        detail,
+        imageUrl,
+        lat,
+        lng,
+        createdAt: Timestamp.now(),
+      });
+
+      setShowPopup(true);
+    } catch (error) {
+      console.error("投稿エラー:", error);
+      alert("投稿に失敗しました。");
+    } finally {
+      setIsPosting(false);
+    }
+  };
 
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -277,4 +257,8 @@ const handlePost = async () => {
       )}
     </div>
   );
+}
+
+interface PageProps {
+  params: { lat: string; lng: string };
 }

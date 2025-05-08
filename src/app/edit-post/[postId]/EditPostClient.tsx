@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { db, storage } from "@/lib/firebase";
 import { doc, getDoc, updateDoc, serverTimestamp } from "firebase/firestore";
 import {
@@ -14,23 +14,8 @@ import { Button } from "@/components/ui/button";
 import { Loader2 } from "lucide-react";
 import Image from "next/image";
 
-interface Post {
-  title: string;
-  date: string;
-  startTime: string;
-  endTime: string;
-  lat: number;
-  lng: number;
-  price?: number;
-  detail?: string;
-  imageUrl?: string;
-  uid: string;
-}
-
-export default function EditPostPage() {
+export default function EditPostClient({ postId }: { postId: string }) {
   const router = useRouter();
-  const searchParams = useSearchParams();
-  const postId = searchParams.get("id");
 
   const [post, setPost] = useState<Post | null>(null);
   const [loading, setLoading] = useState(true);
@@ -47,7 +32,6 @@ export default function EditPostPage() {
 
   useEffect(() => {
     const fetchPost = async () => {
-      if (!postId) return;
       const postDoc = await getDoc(doc(db, "posts", postId));
       if (postDoc.exists()) {
         const data = postDoc.data() as Post;
@@ -74,9 +58,7 @@ export default function EditPostPage() {
   };
 
   const handleSubmit = async () => {
-    if (!postId) return;
     setUpdating(true);
-
     let imageUrl = post?.imageUrl || "";
 
     try {
@@ -84,7 +66,6 @@ export default function EditPostPage() {
         const ext = image.name.split(".").pop();
         const imageRef = ref(storage, `images/${postId}.${ext}`);
 
-        // 旧画像削除（安全のため try-catch）
         if (post?.imageUrl) {
           try {
             const oldExt = post.imageUrl.split(".").pop();
@@ -110,7 +91,7 @@ export default function EditPostPage() {
         updatedAt: serverTimestamp(),
       });
 
-      router.push(`/post-detail?id=${postId}`);
+      router.push(`/post-detail/${postId}`);
     } catch (err) {
       console.error("更新エラー:", err);
       alert("保存に失敗しました");
@@ -134,7 +115,6 @@ export default function EditPostPage() {
   return (
     <div className="max-w-xl mx-auto p-4 space-y-6">
       <h1 className="text-2xl font-bold text-center">投稿を編集</h1>
-
       <div className="space-y-4">
         <input
           className="w-full border p-2 rounded"
@@ -199,4 +179,17 @@ export default function EditPostPage() {
       </div>
     </div>
   );
+}
+
+interface Post {
+  title: string;
+  date: string;
+  startTime: string;
+  endTime: string;
+  lat: number;
+  lng: number;
+  price?: number;
+  detail?: string;
+  imageUrl?: string;
+  uid: string;
 }

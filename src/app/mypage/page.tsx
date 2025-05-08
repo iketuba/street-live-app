@@ -200,7 +200,7 @@ export default function MyPage() {
                   ? "無料"
                   : `¥${post.price}`}
               </p>
-              <Link href={`/post-detail?id=${post.id}`}>
+              <Link href={`/post-detail/${post.id}`}>
                 <Button variant="outline" size="sm" className="mt-2">
                   詳細を表示
                 </Button>

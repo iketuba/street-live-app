@@ -273,9 +273,7 @@ export default function SimpleMap({ onPlaceSelected }: SimpleMapProps) {
                       {post.date} {post.startTime}〜{post.endTime}
                     </p>
                     <a
-                      href={`/post-detail?id=${encodeURIComponent(
-                        post.postId
-                      )}`}
+                      href={`/post-detail/${post.postId}`}
                       className="text-blue-500 text-sm underline mt-1 inline-block"
                     >
                       詳細を確認

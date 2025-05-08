@@ -27,13 +27,8 @@ export default function LocationSelectPage() {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
       setIsLoggedIn(!!user);
       setAuthChecked(true);
-
       if (user && shouldRedirectAfterLogin && markerPosition) {
-        const query = new URLSearchParams({
-          latitude: markerPosition.lat.toString(),
-          longitude: markerPosition.lng.toString(),
-        });
-        router.push(`/post?${query.toString()}`);
+        router.push(`/post/${markerPosition.lat}/${markerPosition.lng}`);
       }
     });
 
@@ -54,14 +49,8 @@ export default function LocationSelectPage() {
   // 「次へ」ボタン押下時の処理
   const handleNext = () => {
     if (!markerPosition) return;
-
-    const query = new URLSearchParams({
-      latitude: markerPosition.lat.toString(),
-      longitude: markerPosition.lng.toString(),
-    });
-
     if (isLoggedIn) {
-      router.push(`/post?${query.toString()}`);
+      router.push(`/post/${markerPosition.lat}/${markerPosition.lng}`);
     } else {
       setShouldRedirectAfterLogin(true);
       setModalType("login");
