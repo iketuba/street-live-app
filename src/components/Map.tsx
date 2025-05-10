@@ -7,6 +7,7 @@ import {
   Autocomplete,
   useJsApiLoader,
   InfoWindow,
+  OverlayView
 } from "@react-google-maps/api";
 import { collection, getDocs, doc, getDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
@@ -39,6 +40,7 @@ interface GroupedPost {
 // SimpleMapコンポーネントのプロパティインターフェース
 interface SimpleMapProps {
   onPlaceSelected?: (location: google.maps.LatLngLiteral) => void; // 場所が選ばれたときのコールバック
+  showStatusLabel?: boolean;
 }
 
 
@@ -79,7 +81,7 @@ const initialCenter = {
   lng: 139.7670516,
 };
 
-export default function SimpleMap({ onPlaceSelected }: SimpleMapProps) {
+export default function SimpleMap({ onPlaceSelected, showStatusLabel }: SimpleMapProps) {
   // Google Maps APIのロード
   const { isLoaded } = useJsApiLoader({
     googleMapsApiKey: process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY ?? "",
@@ -96,6 +98,7 @@ export default function SimpleMap({ onPlaceSelected }: SimpleMapProps) {
   const [userLocation, setUserLocation] =
     useState<google.maps.LatLngLiteral | null>(null); // ユーザーの現在地
   const [groupedPosts, setGroupedPosts] = useState<GroupedPost[]>([]); // 投稿のグループ化結果
+  const [showPastEvents, setShowPastEvents] = useState(true); // 過去のイベントを表示するかどうか
 
   const handleLoad = (mapInstance: google.maps.Map) => {
     setMap(mapInstance);
@@ -141,12 +144,18 @@ export default function SimpleMap({ onPlaceSelected }: SimpleMapProps) {
         });
       }
 
-      setGroupedPosts(groupPostsByLocation(postsWithUserData));
+      const now = new Date();
+      const filteredPosts = postsWithUserData.filter((post) => {
+        const postEndDate = new Date(`${post.date}T${post.endTime}`);
+        return showPastEvents || postEndDate > now; // 過去の投稿を除外する
+      });
+
+      setGroupedPosts(groupPostsByLocation(filteredPosts));
       setLoadingPosts(false);
     };
 
     fetchPosts();
-  }, []);
+  }, [showPastEvents]);
 
   // ユーザーの現在地を取得して地図を移動
   useEffect(() => {
@@ -260,17 +269,53 @@ export default function SimpleMap({ onPlaceSelected }: SimpleMapProps) {
         )}
 
         {/* グループ化された投稿マーカー */}
-        {groupedPosts.map((group) => (
-          <Marker
-            key={group.key}
-            position={{ lat: group.lat, lng: group.lng }}
-            onClick={() => setSelectedPost(group)}
-            icon={{
-              url: "http://maps.google.com/mapfiles/ms/icons/orange-dot.png",
-            }}
-            zIndex={2}
-          />
-        ))}
+        {groupedPosts.map((group) => {
+          const now = new Date();
+          const sortedPosts = [...group.posts].sort(
+            (a, b) =>
+              new Date(`${a.date}T${a.startTime}`).getTime() -
+              new Date(`${b.date}T${b.startTime}`).getTime()
+          );
+
+          const first = sortedPosts[0];
+          const start = new Date(`${first.date}T${first.startTime}`);
+          const end = new Date(`${first.date}T${first.endTime}`);
+
+          let statusLabel = "";
+          if (start <= now && end >= now) {
+            statusLabel = "ライブ中";
+          } else if (
+            start > now &&
+            start.getTime() - now.getTime() <= 24 * 60 * 60 * 1000
+          ) {
+            statusLabel = "まもなくライブ";
+          }
+
+          return (
+            <div key={group.key}>
+              <Marker
+                position={{ lat: group.lat, lng: group.lng }}
+                onClick={() => setSelectedPost(group)}
+                icon={{
+                  url: "http://maps.google.com/mapfiles/ms/icons/orange-dot.png",
+                }}
+                zIndex={2}
+              />
+
+              {/* OverlayViewでラベルを表示 */}
+              {showStatusLabel && statusLabel && (
+                <OverlayView
+                  position={{ lat: group.lat, lng: group.lng }}
+                  mapPaneName={OverlayView.OVERLAY_MOUSE_TARGET}
+                >
+                  <div className="animate-bounce text-red-600 text-xs font-bold px-2 py-1 rounded shadow transform -translate-y-10 whitespace-nowrap">
+                    {statusLabel}
+                  </div>
+                </OverlayView>
+              )}
+            </div>
+          );
+        })}
 
         {/* 吹き出しで複数投稿表示 */}
         {selectedPost && (
@@ -279,44 +324,145 @@ export default function SimpleMap({ onPlaceSelected }: SimpleMapProps) {
             onCloseClick={() => setSelectedPost(null)}
           >
             <div className="max-w-xs space-y-3">
-              {selectedPost.posts.map((post, i) => (
-                <div key={i} className="flex space-x-3 border-b pb-2">
-                  {/* 左側：プロフィール画像とアカウント名 */}
-                  <div className="flex flex-col items-center">
-                    <div className="relative w-10 h-10 rounded-full overflow-hidden">
-                      <Image
-                        src={post.photoURL}
-                        alt="プロフィール画像"
-                        fill
-                        className="object-cover"
-                      />
-                    </div>
-                    <span className="text-sm text-gray-700 mt-1">
-                      {post.username}
-                    </span>
-                  </div>
+              {(() => {
+                const now = new Date();
 
-                  {/* 右側：投稿情報 */}
-                  <div className="flex-1">
-                    <h3 className="font-bold">{post.title}</h3>
-                    <p className="text-sm text-gray-600">
-                      {post.date} {post.startTime}〜{post.endTime}
-                    </p>
-                    <a
-                      href={`/post-detail?id=${encodeURIComponent(
-                        post.postId
-                      )}`}
-                      className="text-blue-500 text-sm underline mt-1 inline-block"
-                    >
-                      詳細を確認
-                    </a>
-                  </div>
-                </div>
-              ))}
+                // カテゴリ分け
+                const liveNow: Post[] = [];
+                const liveSoon: Post[] = [];
+                const liveFuture: Post[] = [];
+                const livePast: Post[] = [];
+
+                selectedPost.posts.forEach((post) => {
+                  const start = new Date(`${post.date}T${post.startTime}`);
+                  const end = new Date(`${post.date}T${post.endTime}`);
+
+                  if (start <= now && end >= now) {
+                    liveNow.push(post);
+                  } else if (
+                    start > now &&
+                    start.getTime() - now.getTime() <= 24 * 60 * 60 * 1000
+                  ) {
+                    liveSoon.push(post);
+                  } else if (start > now) {
+                    liveFuture.push(post);
+                  } else {
+                    livePast.push(post);
+                  }
+                });
+
+                // 並び替え
+                liveSoon.sort(
+                  (a, b) =>
+                    new Date(`${a.date}T${a.startTime}`).getTime() -
+                    new Date(`${b.date}T${b.startTime}`).getTime()
+                );
+                liveFuture.sort(
+                  (a, b) =>
+                    new Date(`${a.date}T${a.startTime}`).getTime() -
+                    new Date(`${b.date}T${b.startTime}`).getTime()
+                );
+                livePast.sort(
+                  (a, b) =>
+                    new Date(`${b.date}T${b.startTime}`).getTime() -
+                    new Date(`${a.date}T${a.startTime}`).getTime()
+                );
+
+                const renderSection = (
+                  title: string,
+                  posts: Post[],
+                  colorClass: string
+                ) =>
+                  posts.length > 0 && (
+                    <div>
+                      <h4
+                        className={`text-sm font-bold mb-1 px-2 py-1 rounded ${colorClass}`}
+                      >
+                        {title}
+                      </h4>
+                      {posts.map((post, i) => (
+                        <div
+                          key={i}
+                          className="flex space-x-3 border-b pb-2 mb-2"
+                        >
+                          {/* プロフィール画像と名前 */}
+                          <div className="flex flex-col items-center">
+                            <div className="relative w-10 h-10 rounded-full overflow-hidden">
+                              <Image
+                                src={post.photoURL}
+                                alt="プロフィール画像"
+                                fill
+                                className="object-cover"
+                              />
+                            </div>
+                            <span className="text-sm text-gray-700 mt-1">
+                              {post.username}
+                            </span>
+                          </div>
+
+                          {/* 投稿内容 */}
+                          <div className="flex-1">
+                            <h3 className="font-bold">{post.title}</h3>
+                            <p className="text-sm text-gray-600">
+                              {post.date} {post.startTime}〜{post.endTime}
+                            </p>
+                            <a
+                              href={`/post-detail?id=${encodeURIComponent(
+                                post.postId
+                              )}`}
+                              className="text-blue-500 text-sm underline mt-1 inline-block"
+                            >
+                              詳細を確認
+                            </a>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  );
+
+                return (
+                  <>
+                    {renderSection(
+                      "🎤 ライブ中",
+                      liveNow,
+                      "bg-red-100 text-red-800"
+                    )}
+                    {renderSection(
+                      "⏰ まもなくライブ",
+                      liveSoon,
+                      "bg-orange-100 text-orange-800"
+                    )}
+                    {renderSection(
+                      "📅 今後のライブ",
+                      liveFuture,
+                      "bg-blue-100 text-blue-800"
+                    )}
+                    {renderSection(
+                      "🕰️ 過去のライブ",
+                      livePast,
+                      "bg-gray-100 text-gray-800"
+                    )}
+                  </>
+                );
+              })()}
             </div>
           </InfoWindow>
         )}
       </GoogleMap>
+
+      {/* チェックボックスUI */}
+      <div className="absolute bottom-20 right-4 bg-white p-2 rounded shadow z-10 flex items-center space-x-2">
+        <input
+          type="checkbox"
+          id="showPastEvents"
+          checked={showPastEvents}
+          onChange={() => setShowPastEvents(!showPastEvents)}
+          className="w-4 h-4"
+        />
+        <label htmlFor="showPastEvents" className="text-sm text-gray-700">
+          過去のライブを表示
+        </label>
+      </div>
     </div>
   );
 }
