@@ -26,6 +26,15 @@ import {
   DropdownMenuItem,
 } from "@/components/ui/dropdown-menu";
 
+interface Post {
+  id: string;
+  title: string;
+  date: string;
+  startTime: string;
+  endTime: string;
+  price: string | number;
+}
+
 export default function MyPage() {
   const [authUser, setAuthUser] = useState<User | null | undefined>(undefined);
   const [isLoadingProfile, setIsLoadingProfile] = useState(true);
@@ -267,13 +276,4 @@ export default function MyPage() {
       </div>
     </div>
   );
-}
-
-interface Post {
-  id: string;
-  title: string;
-  date: string;
-  startTime: string;
-  endTime: string;
-  price: string | number;
 }

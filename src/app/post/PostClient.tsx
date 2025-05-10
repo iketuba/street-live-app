@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import Image from "next/image";
@@ -10,8 +10,35 @@ import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { useAuthState } from "react-firebase-hooks/auth";
 import { Loader2 } from "lucide-react";
 import { v4 as uuidv4 } from "uuid";
+import imageCompression from "browser-image-compression";
+
+// フォームの状態型
+interface PostFormData {
+  title: string;
+  date: string;
+  startTime: string;
+  endTime: string;
+  price: string;
+  detail: string;
+}
+
+// Firestoreに保存するデータ型
+export interface PostDataForFirestore {
+  uid: string;
+  title: string;
+  date: string;
+  startTime: string;
+  endTime: string;
+  price: string;
+  detail: string;
+  imageUrl: string;
+  lat: number;
+  lng: number;
+  createdAt: Timestamp;
+}
 
 export default function PostClient() {
+  // URLから緯度経度を取得
   const searchParams = useSearchParams();
   const latitude = searchParams.get("latitude");
   const longitude = searchParams.get("longitude");
@@ -19,24 +46,32 @@ export default function PostClient() {
     latitude && !isNaN(Number(latitude)) ? parseFloat(latitude) : undefined;
   const lng =
     longitude && !isNaN(Number(longitude)) ? parseFloat(longitude) : undefined;
+
+  // 認証状態を取得
   const [user] = useAuthState(auth);
+  // ルーターを取得
   const router = useRouter();
+  // 投稿状態
   const [isPosting, setIsPosting] = useState(false);
+  // エラーメッセージ
   const [errorMessage, setErrorMessage] = useState("");
-
-  // 入力状態
-  const [startTime, setStartTime] = useState("");
-  const [endTime, setEndTime] = useState("");
-  const [price, setPrice] = useState("");
-  const [detail, setDetail] = useState("");
-  const [image, setImage] = useState<File | null>(null);
-  const [title, setTitle] = useState("");
-  const [date, setDate] = useState("");
-
   // ポップアップ状態
   const [showPopup, setShowPopup] = useState(false);
+  // 投稿情報
+  const [formData, setFormData] = useState<PostFormData>({
+    title: "",
+    date: "",
+    startTime: "",
+    endTime: "",
+    price: "",
+    detail: "",
+  });
+  const [image, setImage] = useState<File | null>(null);
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
 
+  // 投稿ボタンのクリック処理
   const handlePost = async () => {
+    const { title, date, startTime, endTime, price, detail } = formData;
     if (
       !title ||
       !date ||
@@ -54,9 +89,9 @@ export default function PostClient() {
     }
     const selectedDate = new Date(`${date}T${startTime}`);
     const now = new Date();
-    // 過去日付の投稿は禁止
-    if (new Date(date) < new Date(now.toDateString())) {
-      setErrorMessage("日付は今日以降の日付を選択してください");
+    // 開始時間が現在より前ならエラー（未来のみ許可）
+    if (selectedDate < now) {
+      setErrorMessage("開始時間は現在以降の時刻を設定してください");
       return;
     }
     // 開始時間と終了時間の形式チェック
@@ -64,24 +99,20 @@ export default function PostClient() {
       setErrorMessage("開始時間は終了時間より前にしてください");
       return;
     }
-    // 開始時間が現在より前ならエラー（未来のみ許可）
-    if (selectedDate < now) {
-      setErrorMessage("開始時間は現在以降の時刻を設定してください");
-      return;
-    }
-    if (lat < -90 || lat > 90 || lng < -180 || lng > 180) {
-      setErrorMessage("位置情報が不正です");
-      return;
-    }
     if (image && image.size > 5 * 1024 * 1024) {
       setErrorMessage("画像サイズは5MB以下にしてください");
       return;
     }
-
+    if (
+      image &&
+      !["image/jpeg", "image/png", "image/gif"].includes(image.type)
+    ) {
+      setErrorMessage("JPEG, PNG, GIF形式の画像を選択してください");
+      return;
+    }
     setIsPosting(true);
-
     try {
-      const postId = uuidv4(); // 先にIDを生成
+      const postId = uuidv4();
       let imageUrl = "";
 
       if (image) {
@@ -90,21 +121,22 @@ export default function PostClient() {
         await uploadBytes(imageRef, image);
         imageUrl = await getDownloadURL(imageRef);
       }
-
-      await setDoc(doc(db, "posts", postId), {
+      // Firestoreに保存するデータ
+      const postData: PostDataForFirestore = {
         uid: user.uid,
         title,
         date,
         startTime,
         endTime,
-        price: price !== "" ? Number(price) : undefined,
+        price,
         detail,
         imageUrl,
         lat,
         lng,
         createdAt: Timestamp.now(),
-      });
-
+      };
+      // Firestoreに投稿データを保存
+      await setDoc(doc(db, "posts", postId), postData);
       setShowPopup(true);
     } catch (error) {
       console.error("投稿エラー:", error);
@@ -114,18 +146,39 @@ export default function PostClient() {
     }
   };
 
-  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  // 画像選択時の処理
+  const handleImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) setImage(file);
+    if (file) {
+      if (!["image/jpeg", "image/png", "image/gif"].includes(file.type)) {
+        setErrorMessage("JPEG, PNG, GIF形式の画像を選択してください");
+        return;
+      }
+      if (file.size > 5 * 1024 * 1024) {
+        setErrorMessage("画像サイズは5MB以下にしてください");
+        return;
+      }
+      try {
+        const options = {
+          maxSizeMB: 1,
+          maxWidthOrHeight: 1000,
+          useWebWorker: true,
+        };
+        const compressedFile = await imageCompression(file, options);
+        setImage(compressedFile);
+        setImagePreview(URL.createObjectURL(compressedFile));
+      } catch (error) {
+        console.error("画像圧縮エラー:", error);
+        setErrorMessage("画像の読み込みに失敗しました。");
+      }
+    }
   };
 
-  const imagePreviewUrl = useMemo(() => {
-    return image ? URL.createObjectURL(image) : null;
-  }, [image]);
 
   return (
     <div className="fixed inset-0 overflow-y-auto bg-white p-4 max-w-md mx-auto space-y-4 pb-24 overscroll-none">
       <h2 className="text-xl font-bold">投稿情報入力</h2>
+
       {/* タイトル */}
       <div className="space-y-2">
         <label className="block mb-1 font-semibold">
@@ -133,8 +186,8 @@ export default function PostClient() {
         </label>
         <input
           type="text"
-          value={title}
-          onChange={(e) => setTitle(e.target.value)}
+          value={formData.title}
+          onChange={(e) => setFormData({ ...formData, title: e.target.value })}
           placeholder="例: 路上ライブ＠渋谷"
           className="w-full border rounded p-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
           required
@@ -148,8 +201,8 @@ export default function PostClient() {
         </label>
         <input
           type="date"
-          value={date}
-          onChange={(e) => setDate(e.target.value)}
+          value={formData.date}
+          onChange={(e) => setFormData({ ...formData, date: e.target.value })}
           className="w-full border rounded p-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
           required
           min="2020-01-01"
@@ -164,8 +217,10 @@ export default function PostClient() {
         </label>
         <input
           type="time"
-          value={startTime}
-          onChange={(e) => setStartTime(e.target.value)}
+          value={formData.startTime}
+          onChange={(e) =>
+            setFormData({ ...formData, startTime: e.target.value })
+          }
           className="w-full border rounded p-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
           required
         />
@@ -178,8 +233,10 @@ export default function PostClient() {
         </label>
         <input
           type="time"
-          value={endTime}
-          onChange={(e) => setEndTime(e.target.value)}
+          value={formData.endTime}
+          onChange={(e) =>
+            setFormData({ ...formData, endTime: e.target.value })
+          }
           className="w-full border rounded p-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
           required
         />
@@ -193,18 +250,13 @@ export default function PostClient() {
             ¥
           </span>
           <input
-            type="number"
-            value={price}
-            inputMode="numeric" // スマホなどで数字キーボードを表示
-            onChange={(e) => {
-              const value = e.target.value
-                .replace(/[^\d０-９]/g, "") // 数字以外を除去
-                .replace(/[０-９]/g, (s) =>
-                  String.fromCharCode(s.charCodeAt(0) - 65248)
-                ); // 全角→半角変換
-              setPrice(value);
-            }}
-            placeholder="例: 1000"
+            type="text"
+            inputMode="numeric"
+            value={formData.price}
+            onChange={(e) =>
+              setFormData({ ...formData, price: e.target.value })
+            }
+            placeholder="例: 1000 または 無料"
             className="w-full border rounded p-2 pl-8 focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
         </div>
@@ -214,25 +266,58 @@ export default function PostClient() {
       <div className="space-y-2">
         <label className="block font-semibold">詳細</label>
         <textarea
-          value={detail}
-          onChange={(e) => setDetail(e.target.value)}
+          value={formData.detail}
+          onChange={(e) => setFormData({ ...formData, detail: e.target.value })}
           placeholder="イベントの詳細など"
           className="w-full border rounded p-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
         />
       </div>
 
-      {/* 写真 */}
+      {/* 写真アップロードエリア */}
       <div className="space-y-2">
         <label className="block font-semibold">写真</label>
-        <input type="file" accept="image/*" onChange={handleImageChange} />
-        {imagePreviewUrl && (
-          <Image
-            src={imagePreviewUrl}
-            alt="preview"
-            width={200}
-            height={200}
-            className="rounded"
-          />
+
+        {!imagePreview && (
+          <div className="border-2 border-dashed border-gray-300 p-4 rounded-lg text-center">
+            <p className="mb-2 text-gray-500">画像を選択してください</p>
+            <input
+              id="image-upload"
+              type="file"
+              accept="image/*"
+              onChange={handleImageChange}
+              className="hidden"
+            />
+            <label
+              htmlFor="image-upload"
+              className="inline-block px-4 py-2 bg-blue-500 text-white rounded cursor-pointer hover:bg-blue-600 transition"
+            >
+              ファイルを選択
+            </label>
+          </div>
+        )}
+
+        {imagePreview && (
+          <div className="relative">
+            <Image
+              src={imagePreview}
+              alt="preview"
+              width={300}
+              height={300}
+              className="rounded-md mx-auto"
+            />
+            <div className="text-center mt-2">
+              <Button
+                variant="destructive"
+                onClick={() => {
+                  setImage(null);
+                  setImagePreview(null);
+                }}
+                className="mt-2"
+              >
+                画像を削除
+              </Button>
+            </div>
+          </div>
         )}
       </div>
 

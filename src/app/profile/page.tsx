@@ -19,6 +19,17 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { Loader2 } from "lucide-react";
 
+export interface UserProfileData {
+  username?: string;
+  bio?: string;
+  instagram?: string;
+  twitter?: string;
+  youtube?: string;
+  tiktok?: string;
+  other?: string;
+  photoURL?: string;
+}
+
 export default function ProfilePage() {
   const router = useRouter();
   const [user, setUser] = useState<User | null>(null);
@@ -289,15 +300,4 @@ export default function ProfilePage() {
       )}
     </div>
   );
-}
-
-interface UserProfileData {
-  username?: string;
-  bio?: string;
-  instagram?: string;
-  twitter?: string;
-  youtube?: string;
-  tiktok?: string;
-  other?: string;
-  photoURL?: string;
 }

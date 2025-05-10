@@ -13,6 +13,35 @@ import { db } from "@/lib/firebase";
 import Image from "next/image";
 import { Loader2 } from "lucide-react"; // shadcn用スピナー
 
+// 投稿データのインターフェース
+interface Post {
+  postId: string;
+  uid: string;
+  lat: number;
+  lng: number;
+  title: string;
+  imageUrl?: string;
+  date: string;
+  startTime: string;
+  endTime: string;
+  username: string;
+  photoURL: string;
+}
+
+// グループ化された投稿データのインターフェース
+interface GroupedPost {
+  key: string;
+  lat: number;
+  lng: number;
+  posts: Post[];
+}
+
+// SimpleMapコンポーネントのプロパティインターフェース
+interface SimpleMapProps {
+  onPlaceSelected?: (location: google.maps.LatLngLiteral) => void; // 場所が選ばれたときのコールバック
+}
+
+
 // 座標を指定した精度で丸める関数
 function roundCoord(coord: number, precision = 4) {
   return parseFloat(coord.toFixed(precision));
@@ -290,32 +319,4 @@ export default function SimpleMap({ onPlaceSelected }: SimpleMapProps) {
       </GoogleMap>
     </div>
   );
-}
-
-// 投稿データのインターフェース
-interface Post {
-  postId: string;
-  uid: string;
-  lat: number;
-  lng: number;
-  title: string;
-  imageUrl?: string;
-  date: string;
-  startTime: string;
-  endTime: string;
-  username: string;
-  photoURL: string;
-}
-
-// グループ化された投稿データのインターフェース
-interface GroupedPost {
-  key: string;
-  lat: number;
-  lng: number;
-  posts: Post[];
-}
-
-// SimpleMapコンポーネントのプロパティインターフェース
-interface SimpleMapProps {
-  onPlaceSelected?: (location: google.maps.LatLngLiteral) => void; // 場所が選ばれたときのコールバック
 }
