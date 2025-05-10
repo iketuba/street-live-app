@@ -17,6 +17,7 @@ import { onAuthStateChanged, User as AuthUser } from "firebase/auth";
 import { ref, deleteObject } from "firebase/storage";
 import { PostDataForFirestore } from "../post/PostClient";
 import { UserProfileData } from "../profile/page";
+import LikeButton from "@/components/LikeButton";
 
 export default function PostDetailClient() {
   const searchParams = useSearchParams();
@@ -128,7 +129,10 @@ export default function PostDetailClient() {
 
       {/* 投稿詳細 */}
       <div className="space-y-2 text-left">
-        <h2 className="text-xl font-bold">{post.title}</h2>
+        <div className="flex items-center justify-between gap-2">
+          <h2 className="text-xl font-bold">{post.title}</h2>
+          <LikeButton postId={postId!} uid={currentUser?.uid} />
+        </div>
         <p>
           {post.date} {post.startTime}~{post.endTime}
         </p>

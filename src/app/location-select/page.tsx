@@ -86,7 +86,7 @@ export default function LocationSelectPage() {
 
   return (
     <div className="relative w-full h-screen">
-      <SimpleMap onPlaceSelected={handlePlaceSelected} />
+      <SimpleMap onPlaceSelected={handlePlaceSelected} isLocationSelect={true} />
 
       {showPopup && (
         <div className="absolute top-1/3 left-1/2 transform -translate-x-1/2 z-10 bg-yellow-100 border border-yellow-400 text-yellow-900 px-6 py-3 rounded-lg shadow-xl">

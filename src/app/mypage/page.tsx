@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { auth, db } from "@/lib/firebase";
-import { onAuthStateChanged, User, signOut } from "firebase/auth";
+import { signOut } from "firebase/auth";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import Link from "next/link";
@@ -16,15 +16,17 @@ import {
   where,
   getDocs,
 } from "firebase/firestore";
-import { FaInstagram, FaTwitter, FaTiktok, FaYoutube } from "react-icons/fa"; // SNSアイコンをインポート
-import { Loader2 } from "lucide-react";
-import { Settings } from "lucide-react";
+import { FaInstagram, FaTwitter, FaTiktok, FaYoutube } from "react-icons/fa";
+import { Loader2, Settings } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuTrigger,
   DropdownMenuContent,
   DropdownMenuItem,
 } from "@/components/ui/dropdown-menu";
+import { categorizePosts } from "../../lib/categorizePosts";
+import LikeButton from "@/components/LikeButton";
+import { useCurrentUser } from "@/lib/hooks/useCurrentUser";
 
 interface Post {
   id: string;
@@ -33,21 +35,40 @@ interface Post {
   startTime: string;
   endTime: string;
   price: string | number;
+  uid: string;
 }
 
 export default function MyPage() {
-  const [authUser, setAuthUser] = useState<User | null | undefined>(undefined);
-  const [isLoadingProfile, setIsLoadingProfile] = useState(true);
+  const router = useRouter();
+  const authUser = useCurrentUser();
+  const [isLoading, setIsLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<"posts" | "likes">("posts");
-  const [posts, setPosts] = useState<Post[]>([]);
-  const [profile, setProfile] = useState<{
-    photoURL: string;
-    username: string;
-    instagram: string;
-    twitter: string;
-    tiktok: string;
-    youtube: string;
+
+  const [categorizedPosts, setCategorizedPosts] = useState<{
+    liveNow: Post[];
+    liveSoon: Post[];
+    liveFuture: Post[];
+    livePast: Post[];
   }>({
+    liveNow: [],
+    liveSoon: [],
+    liveFuture: [],
+    livePast: [],
+  });
+
+  const [likedCategorizedPosts, setLikedCategorizedPosts] = useState<{
+    liveNow: Post[];
+    liveSoon: Post[];
+    liveFuture: Post[];
+    livePast: Post[];
+  }>({
+    liveNow: [],
+    liveSoon: [],
+    liveFuture: [],
+    livePast: [],
+  });
+
+  const [profile, setProfile] = useState({
     photoURL: "",
     username: "",
     instagram: "",
@@ -55,60 +76,54 @@ export default function MyPage() {
     tiktok: "",
     youtube: "",
   });
-  const router = useRouter();
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (user) => {
-      setAuthUser(user);
-      if (!user) {
-        router.push("/login");
-      } else {
-        const userDocRef = doc(db, "users", user.uid);
-        const userDocSnap = await getDoc(userDocRef);
-        if (userDocSnap.exists()) {
-          const data = userDocSnap.data();
-          setProfile({
-            photoURL: data.photoURL || "/default-profile.png",
-            username: data.username || "ユーザー名未設定",
-            instagram: data.instagram || "",
-            twitter: data.twitter || "",
-            tiktok: data.tiktok || "",
-            youtube: data.youtube || "",
-          });
-        }
+    if (!authUser) return;
 
-        // 投稿データ取得
-        const postQuery = query(
-          collection(db, "posts"),
-          where("uid", "==", user.uid)
-        );
-        const snapshot = await getDocs(postQuery);
-        const postList: Post[] = snapshot.docs.map((doc) => {
-          const data = doc.data();
-          return {
-            id: doc.id,
-            title: data.title || "",
-            date: data.date || "",
-            startTime: data.startTime || "",
-            endTime: data.endTime || "",
-            price: data.price || 0,
-          };
+    const fetchData = async () => {
+      // ユーザー情報取得・投稿取得
+      const userDocSnap = await getDoc(doc(db, "users", authUser.uid));
+      if (userDocSnap.exists()) {
+        const data = userDocSnap.data();
+        setProfile({
+          photoURL: data.photoURL || "/default-profile.png",
+          username: data.username || "ユーザー名未設定",
+          instagram: data.instagram || "",
+          twitter: data.twitter || "",
+          tiktok: data.tiktok || "",
+          youtube: data.youtube || "",
         });
-        setPosts(postList);
-        setIsLoadingProfile(false);
       }
-    });
+      const postQuery = query(
+        collection(db, "posts"),
+        where("uid", "==", authUser.uid)
+      );
+      const snapshot = await getDocs(postQuery);
+      const postList: Post[] = snapshot.docs.map((doc) => ({
+        id: doc.id,
+        ...doc.data(),
+      })) as Post[];
+      const categorized = categorizePosts(postList);
+      setCategorizedPosts(categorized);
 
-    return () => unsubscribe();
-  }, [router]);
+      // いいねした投稿を取得
+      const likesSnap = await getDocs(
+        collection(db, `users/${authUser.uid}/likes`)
+      );
+      const likedPostIds = likesSnap.docs.map((doc) => doc.id);
+      const likedPostsData: Post[] = [];
+      for (const postId of likedPostIds) {
+        const postDoc = await getDoc(doc(db, "posts", postId));
+        if (postDoc.exists()) {
+          likedPostsData.push({ id: postDoc.id, ...postDoc.data() } as Post);
+        }
+      }
+      setLikedCategorizedPosts(categorizePosts(likedPostsData));
+      setIsLoading(false);
+    };
 
-  if (authUser === undefined || authUser === null) {
-    return (
-      <div className="flex justify-center items-center min-h-screen">
-        <Loader2 className="h-8 w-8 animate-spin text-gray-500" />
-      </div>
-    );
-  }
+    fetchData();
+  }, [authUser]);
 
   const handleLogout = async () => {
     await signOut(auth);
@@ -116,63 +131,86 @@ export default function MyPage() {
     router.push("/");
   };
 
+  const snsLinks: {
+    key: "instagram" | "twitter" | "tiktok" | "youtube";
+    icon: React.ElementType;
+    color: string;
+  }[] = [
+    { key: "instagram", icon: FaInstagram, color: "text-pink-500" },
+    { key: "twitter", icon: FaTwitter, color: "text-blue-400" },
+    { key: "tiktok", icon: FaTiktok, color: "text-black" },
+    { key: "youtube", icon: FaYoutube, color: "text-red-600" },
+  ];
+
+  const sections = [
+    { label: "🎤 ライブ中", key: "liveNow" },
+    { label: "⏰ まもなくライブ", key: "liveSoon" },
+    { label: "📅 今後のライブ", key: "liveFuture" },
+    { label: "🕰️ 過去のライブ", key: "livePast" },
+  ] as const;
+
+  const PostCard = ({ post }: { post: Post }) => (
+    <div className="relative border-b border-gray-300 pb-2 mb-2">
+      <h2 className="font-semibold text-lg">{post.title}</h2>
+      <div className="absolute top-2 right-2">
+        <LikeButton postId={post.id} uid={authUser?.uid} />
+      </div>
+      <p className="text-sm text-gray-600">
+        {post.date} {post.startTime}~{post.endTime}
+      </p>
+      <p className="text-sm text-gray-600">料金: {post.price}</p>
+      <Link href={`/post-detail?id=${post.id}`}>
+        <Button variant="outline" size="sm" className="mt-2">
+          詳細を表示
+        </Button>
+      </Link>
+    </div>
+  );
+
+  if (authUser === undefined || isLoading) {
+    return (
+      <div className="flex justify-center items-center min-h-screen">
+        <Loader2 className="h-8 w-8 animate-spin text-gray-500" />
+      </div>
+    );
+  }
+
   return (
-    <div className="fixed inset-0 overflow-y-auto bg-white px-4 pt-8 pb-32 flex flex-col items-center overscroll-none">
-      {/* プロフィール画像と名前 */}
-      {isLoadingProfile ? (
-        <div className="flex flex-col items-center space-y-2 mb-8">
-          <div className="w-24 h-24 rounded-full bg-gray-200 animate-pulse" />
-          <div className="w-32 h-5 bg-gray-200 rounded animate-pulse" />
+    <div className="fixed inset-0 overflow-y-auto bg-white px-4 pt-8 pb-32 flex flex-col items-center">
+      {/* プロフィール表示 */}
+      <div className="flex flex-col items-center space-y-2 mb-8">
+        <div className="relative w-24 h-24">
+          <Image
+            src={profile.photoURL || "/default-profile.png"}
+            alt="プロフィール画像"
+            layout="fill"
+            objectFit="cover"
+            className="rounded-full"
+          />
         </div>
-      ) : (
-        <div className="flex flex-col items-center space-y-2 mb-8">
-          <div className="relative w-24 h-24">
-            <Image
-              src={profile.photoURL || "/default-profile.png"}
-              alt="プロフィール画像"
-              layout="fill"
-              objectFit="cover"
-              className="rounded-full"
-            />
-          </div>
-          <h1 className="text-xl font-semibold">{profile.username}</h1>
-        </div>
-      )}
+        <h1 className="text-xl font-semibold">{profile.username}</h1>
+      </div>
 
-      {/* SNSアイコンの表示 */}
+      {/* SNSリンク */}
       <div className="flex space-x-4 mb-4">
-        {profile.instagram && (
-          <Link href={profile.instagram} passHref>
-            <FaInstagram size={24} className="text-blue-600" />
-          </Link>
-        )}
-        {profile.twitter && (
-          <Link href={profile.twitter} passHref>
-            <FaTwitter size={24} className="text-blue-400" />
-          </Link>
-        )}
-        {profile.tiktok && (
-          <Link href={profile.tiktok} passHref>
-            <FaTiktok size={24} className="text-black" />
-          </Link>
-        )}
-        {profile.youtube && (
-          <Link href={profile.youtube} passHref>
-            <FaYoutube size={24} className="text-red-600" />
-          </Link>
+        {snsLinks.map(
+          ({ key, icon: Icon, color }) =>
+            profile[key] && (
+              <Link href={profile[key as keyof typeof profile]} key={key}>
+                <Icon size={24} className={color} />
+              </Link>
+            )
         )}
       </div>
 
-      {/* プロフィール編集 */}
-      <div className="w-full max-w-md mb-4">
-        <Link href="/profile">
-          <Button variant="ghost" className="w-full text-left">
-            プロフィールを編集
-          </Button>
-        </Link>
-      </div>
+      {/* プロフィール編集リンク */}
+      <Link href="/profile" className="w-full max-w-md mb-4">
+        <Button variant="ghost" className="w-full text-left">
+          プロフィールを編集
+        </Button>
+      </Link>
 
-      {/* タブ */}
+      {/* タブ切り替え */}
       <div className="flex space-x-4 mb-4">
         <button
           onClick={() => setActiveTab("posts")}
@@ -194,37 +232,40 @@ export default function MyPage() {
 
       {/* 投稿表示 */}
       <div className="w-full max-w-md space-y-4">
-        {activeTab === "posts" &&
-          posts.map((post) => (
-            <div key={post.id} className="border-b border-gray-300 pb-2">
-              <h2 className="font-semibold text-lg">{post.title}</h2>
-              <p className="text-sm text-gray-600">
-                {post.date} {post.startTime}~{post.endTime}
-              </p>
-              <p className="text-sm text-gray-600">
-                料金:{" "}
-                {typeof post.price !== "number"
-                  ? "未設定"
-                  : post.price === 0
-                  ? "無料"
-                  : `¥${post.price}`}
-              </p>
-              <Link href={`/post-detail?id=${post.id}`}>
-                <Button variant="outline" size="sm" className="mt-2">
-                  詳細を表示
-                </Button>
-              </Link>
-            </div>
-          ))}
-
-        {activeTab === "likes" && (
+        {activeTab === "posts" ? (
+          sections.map(
+            ({ label, key }) =>
+              categorizedPosts[key].length > 0 && (
+                <div key={key}>
+                  <h2 className="text-md font-bold mt-6 mb-2">{label}</h2>
+                  {categorizedPosts[key].map((post) => (
+                    <PostCard key={post.id} post={post} />
+                  ))}
+                </div>
+              )
+          )
+        ) : sections.some(
+            ({ key }) => likedCategorizedPosts[key].length > 0
+          ) ? (
+          sections.map(
+            ({ label, key }) =>
+              likedCategorizedPosts[key].length > 0 && (
+                <div key={key}>
+                  <h2 className="text-md font-bold mt-6 mb-2">{label}</h2>
+                  {likedCategorizedPosts[key].map((post) => (
+                    <PostCard key={post.id} post={post} />
+                  ))}
+                </div>
+              )
+          )
+        ) : (
           <div className="text-gray-500 text-center">
             表示する投稿がありません
           </div>
         )}
       </div>
 
-      {/* 設定ボタン */}
+      {/* 設定メニュー */}
       <div className="absolute top-4 right-4 z-10">
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
@@ -255,13 +296,10 @@ export default function MyPage() {
                     "アカウントを削除すると、すべてのデータが失われます。本当に削除しますか？"
                   )
                 ) {
-                  // アカウント削除処理
                   try {
-                    if (auth.currentUser) {
-                      await auth.currentUser.delete();
-                      toast.success("アカウントを削除しました");
-                      router.push("/");
-                    }
+                    await auth.currentUser?.delete();
+                    toast.success("アカウントを削除しました");
+                    router.push("/");
                   } catch {
                     toast.error("アカウント削除に失敗しました");
                   }

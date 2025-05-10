@@ -34,7 +34,7 @@ export const AuthButtons = () => {
   if (user) return null;
 
   return (
-    <div className="fixed bottom-20 right-4 flex space-x-2 z-10">
+    <div className="fixed top-20 right-4 flex space-x-2 z-10">
       <Button
         onClick={() => openModal("login")}
         className="py-1.5 px-4 text-white rounded-md text-sm bg-blue-300 hover:bg-blue-400"

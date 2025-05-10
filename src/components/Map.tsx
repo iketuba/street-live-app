@@ -7,12 +7,14 @@ import {
   Autocomplete,
   useJsApiLoader,
   InfoWindow,
-  OverlayView
+  OverlayView,
 } from "@react-google-maps/api";
 import { collection, getDocs, doc, getDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import Image from "next/image";
 import { Loader2 } from "lucide-react"; // shadcn用スピナー
+import { useCurrentUser } from "@/lib/hooks/useCurrentUser";
+import LikeButton from "./LikeButton";
 
 // 投稿データのインターフェース
 interface Post {
@@ -41,8 +43,8 @@ interface GroupedPost {
 interface SimpleMapProps {
   onPlaceSelected?: (location: google.maps.LatLngLiteral) => void; // 場所が選ばれたときのコールバック
   showStatusLabel?: boolean;
+  isLocationSelect?: boolean;
 }
-
 
 // 座標を指定した精度で丸める関数
 function roundCoord(coord: number, precision = 4) {
@@ -81,7 +83,11 @@ const initialCenter = {
   lng: 139.7670516,
 };
 
-export default function SimpleMap({ onPlaceSelected, showStatusLabel }: SimpleMapProps) {
+export default function SimpleMap({
+  onPlaceSelected,
+  showStatusLabel,
+  isLocationSelect,
+}: SimpleMapProps) {
   // Google Maps APIのロード
   const { isLoaded } = useJsApiLoader({
     googleMapsApiKey: process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY ?? "",
@@ -98,7 +104,8 @@ export default function SimpleMap({ onPlaceSelected, showStatusLabel }: SimpleMa
   const [userLocation, setUserLocation] =
     useState<google.maps.LatLngLiteral | null>(null); // ユーザーの現在地
   const [groupedPosts, setGroupedPosts] = useState<GroupedPost[]>([]); // 投稿のグループ化結果
-  const [showPastEvents, setShowPastEvents] = useState(true); // 過去のイベントを表示するかどうか
+  const [showPastEvents, setShowPastEvents] = useState(!isLocationSelect); // 過去のイベントを表示するかどうか
+  const currentUser = useCurrentUser();
 
   const handleLoad = (mapInstance: google.maps.Map) => {
     setMap(mapInstance);
@@ -286,7 +293,7 @@ export default function SimpleMap({ onPlaceSelected, showStatusLabel }: SimpleMa
             statusLabel = "ライブ中";
           } else if (
             start > now &&
-            start.getTime() - now.getTime() <= 24 * 60 * 60 * 1000
+            start.getTime() - now.getTime() <= 3 * 60 * 60 * 1000
           ) {
             statusLabel = "まもなくライブ";
           }
@@ -415,6 +422,12 @@ export default function SimpleMap({ onPlaceSelected, showStatusLabel }: SimpleMa
                               詳細を確認
                             </a>
                           </div>
+
+                          {/* いいねボタン */}
+                          <LikeButton
+                            postId={post.postId}
+                            uid={currentUser?.uid}
+                          />
                         </div>
                       ))}
                     </div>
@@ -451,18 +464,20 @@ export default function SimpleMap({ onPlaceSelected, showStatusLabel }: SimpleMa
       </GoogleMap>
 
       {/* チェックボックスUI */}
-      <div className="absolute bottom-20 right-4 bg-white p-2 rounded shadow z-10 flex items-center space-x-2">
-        <input
-          type="checkbox"
-          id="showPastEvents"
-          checked={showPastEvents}
-          onChange={() => setShowPastEvents(!showPastEvents)}
-          className="w-4 h-4"
-        />
-        <label htmlFor="showPastEvents" className="text-sm text-gray-700">
-          過去のライブを表示
-        </label>
-      </div>
+      {!isLocationSelect && (
+        <div className="absolute bottom-20 left-4 bg-white p-2 rounded shadow z-10 flex items-center space-x-2">
+          <input
+            type="checkbox"
+            id="showPastEvents"
+            checked={showPastEvents}
+            onChange={() => setShowPastEvents(!showPastEvents)}
+            className="w-4 h-4"
+          />
+          <label htmlFor="showPastEvents" className="text-sm text-gray-700">
+            過去のライブを表示
+          </label>
+        </div>
+      )}
     </div>
   );
 }
